@@ -1,4 +1,6 @@
-# Job Application Workspace
+# HireFlow
+
+**Your resume, tailored to every job — and the form already filled in.**
 
 Claude Code as your job-search-and-apply agent. Drop in a resume, type `/job`, and it works
 out what you're looking for, finds live postings, captures the job descriptions, and tailors

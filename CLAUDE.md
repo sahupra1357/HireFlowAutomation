@@ -1,4 +1,4 @@
-# Job Application Workspace
+# HireFlow
 
 Claude Code **is** the agent for this workspace. It finds jobs across configured
 sites, records them as reviewable Markdown, tailors the user's resume to a specific job
