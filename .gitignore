@@ -24,7 +24,7 @@ interviews/output/reports/
 !.gitkeep
 
 # Build artifacts
-bin/
+/bin/
 /dashboard
 
 .DS_Store
