@@ -12,6 +12,27 @@ the resume you drop in; the roles it searches for are derived from that same res
 in a config file you can edit. It works the same for a Java full stack developer as for an AI
 engineer.
 
+## Demo
+
+![HireFlow — the jobs index, the dashboard, and a live application form being filled](docs/demo/hireflow-demo.gif)
+
+*([full-resolution MP4](docs/demo/hireflow-demo.mp4) — 25s)*
+
+A real run, end to end: the jobs index after a search, scrolled right to the **JD / Resume /
+Form / Status** columns · the dashboard's pipeline and fit stats · then a live Greenhouse
+application form being filled — name, phone, and the tailored `resume.pdf` uploaded — ending
+on the **Submit button, deliberately not clicked**.
+
+Three things the clip is showing on purpose:
+
+- **The agent stops at Submit.** The last shot is a complete-looking form and an untouched
+  Submit button. That is the ceiling, by design — see [The guarantees](#the-guarantees).
+- **Blank fields are blank on purpose.** Work authorization, sponsorship and the two policy
+  acknowledgements are left empty because they were not in the answer bank. The agent does
+  not guess a screening answer or accept a privacy policy on your behalf.
+- **The name and phone are blacked out** in the recording, not in the product — this is a
+  public demo of one real person's workspace.
+
 ## Quickstart
 
 ```bash
