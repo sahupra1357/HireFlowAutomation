@@ -211,7 +211,7 @@ jobs/
     templates/                the file formats the tasks write
   output/
     jobs.md                   the living index (what the dashboard reads)
-    tracker.md                the status board
+    tracker.md                the status board (gitignored; `make init` seeds it)
     jds/<job-id>.md           full job descriptions
     applications/<job-id>/    resume.md · resume.pdf · cover letter · log.md
                               form-fill.json  the form's field map

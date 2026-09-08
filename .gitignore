@@ -13,6 +13,7 @@ jobs/output/history/
 jobs/output/jds/
 jobs/output/applications/
 jobs/output/logs/
+jobs/output/tracker.md
 .resets/
 jobs/output/.daily-run.lock
 jobs/tasks/search.md.bak-2026-09-07
@@ -20,7 +21,8 @@ interviews/output/interviews.md
 interviews/output/reports/
 
 # Keep the scaffolding
-!jobs/output/tracker.md
+# (the tracker itself is per-user data — the blank board ships as
+#  jobs/input/templates/tracker.md and `make init` seeds it)
 !.gitkeep
 
 # Build artifacts
