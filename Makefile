@@ -1,4 +1,4 @@
-# AI Job Application workspace
+# HireFlow workspace
 #
 # The /job skill (and its task files in jobs/tasks/) runs inside Claude Code.
 # This Makefile only covers the Go dashboard that reads jobs/output/jobs.md.
@@ -9,10 +9,10 @@ IX   ?= interviews/output/interviews.md
 BIN  ?= bin/jobs-dashboard
 
 .DEFAULT_GOAL := help
-.PHONY: help web pdf refill daily morning submitted reset build install run-bin fmt vet check clean stats ix-stats history snapshot stop status
+.PHONY: help web pdf refill daily morning init submitted reset build install run-bin fmt vet check clean stats ix-stats history snapshot stop status
 
 help: ## Show this help
-	@echo "AI Job Application — make targets"
+	@echo "HireFlow — make targets"
 	@echo
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -40,7 +40,10 @@ daily: ## The whole loop: search → JDs → tailored resumes → filled forms o
 morning: ## Open every mapped application, filled, in a visible browser (JOB=<job-id> for one)
 	@bash jobs/bin/morning-run.sh $(JOB)
 
-submitted: ## Record that YOU submitted an application (make submitted JOB=<job-id>)
+init: ## Seed jobs/output/tracker.md from the template (safe to re-run; never overwrites)
+	@bash jobs/bin/ensure-tracker.sh
+
+submitted: init ## Record that YOU submitted an application (make submitted JOB=<job-id>)
 	@test -n "$(JOB)" || { echo "usage: make submitted JOB=<job-id>"; exit 1; }
 	@bash jobs/bin/mark-submitted.sh $(JOB)
 

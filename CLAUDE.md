@@ -77,11 +77,12 @@ user provides, `output/` is what the agent produces.
 | `jobs/input/config/job-sites.md` | Sites to search, how to reach each one, per-site notes. **User-editable.** |
 | `jobs/input/config/search-profile.md` | **The role families** the search targets, plus keywords, locations, comp floor, hard filters. User-defined, any number of families, no domain baked in. Seeded from `jobs/input/templates/search-profile.md` by `/job setup`. |
 | `jobs/input/config/application-answers.md` | The screening-question answer bank. Grows over time. Gitignored. |
-| `jobs/input/templates/` | The file formats the skills write, plus blank copies of the personal/config files (`master-resume.md`, `links.md`, `application-answers.md`, `search-profile.md`). Read the template before writing. |
+| `jobs/input/templates/` | The file formats the skills write, plus blank copies of the personal/config files (`master-resume.md`, `links.md`, `application-answers.md`, `search-profile.md`, `tracker.md`). Read the template before writing. |
 | `jobs/output/jobs.md` | **The living index.** Summary + Unverified backlog + Excluded + Details. `/job search` merges into it; every later skill updates its **Status** and **JD / Resume / Form** columns in place. Never rewritten from scratch. |
-| `jobs/output/tracker.md` | Master status board across all applications. |
+| `jobs/output/tracker.md` | Master status board across all applications. Gitignored — it is per-user data. The blank board ships as `jobs/input/templates/tracker.md`; `make init` (or `jobs/bin/ensure-tracker.sh`) seeds it, and never overwrites an existing one. |
 | `jobs/output/run-log.md` | One entry per `/job` run, newest first — what was searched, filters in force, sites unswept, what the run learned. Narrative detail lives here, not in the `jobs.md` header. |
 | `jobs/output/history/jobs-<timestamp>.md` | Timestamped snapshots of `jobs.md`, written by `jobs/bin/snapshot.sh` before any run edits the index. Last 50 kept. The dashboard's version picker renders any of them. |
+| `jobs/bin/ensure-tracker.sh` | `make init` — seeds `jobs/output/tracker.md` from the template when it is missing. Idempotent; anything that writes to the tracker calls it first. |
 | `jobs/bin/snapshot.sh` | Archives `jobs.md`. Run once per run, before the first edit. |
 | `jobs/bin/fill-form.py` | Replays a job's `form-fill.json` into the **visible** browser — text, comboboxes, checkboxes, and a real `resume.pdf` upload. The mechanical half of `/job apply --batch`, and what `jobs/bin/morning-run.sh` calls for every mapped job each morning. Clicks no submit control. |
 | `jobs/bin/morning-run.sh` | `make morning` — re-opens every mapped, unsubmitted application filled in its own tab, re-using a tab already on that posting. No agent, no tokens. |
