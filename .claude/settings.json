@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(date:*)",
+      "Bash(mkdir:*)",
+      "Bash(wc:*)",
+      "Bash(sed:*)",
+      "Bash(textutil:*)",
+      "Read(./**)",
+      "Write(./jobs/output/**)",
+      "Edit(./jobs/output/**)",
+      "Write(./interviews/output/**)",
+      "Edit(./interviews/output/**)",
+      "Edit(./jobs/input/config/**)",
+      "Edit(./jobs/input/profile/**)"
+    ],
+    "deny": []
+  }
+}

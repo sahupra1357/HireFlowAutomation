@@ -1,0 +1,94 @@
+{
+  "_README": [
+    "The field map /job apply --batch records while filling a form, one per job, written to",
+    "jobs/output/applications/<job-id>/form-fill.json. jobs/bin/make-refill.py turns it into",
+    "refill.js — the script that puts the same answers back into the same form later, in the",
+    "user's own browser. Delete this _README key in the real file.",
+    "",
+    "Every value here must come from jobs/input/profile/master-resume.md or",
+    "jobs/input/config/application-answers.md. A question with no answer on file goes in",
+    "'gaps' and is left blank on the form — it is never guessed."
+  ],
+
+  "job_id": "<company-slug>--<role-slug>",
+  "role": "Senior Software Engineer",
+  "company": "Acme",
+  "apply_url": "https://job-boards.greenhouse.io/acme/jobs/1234567",
+  "captured": "2026-09-07",
+  "ats": "greenhouse",
+
+  "frame": "greenhouse.io/embed",
+  "_frame": "URL fragment of the iframe holding the form, when it is in one. Omit otherwise.",
+
+  "resume_file": "resume.pdf",
+  "_resume_file": "What the user must attach by hand — scripts cannot fill a file input.",
+
+  "fields": [
+    {
+      "label": "First Name",
+      "selector": "#first_name",
+      "name": "first_name",
+      "type": "text",
+      "value": "<from the Identity block of application-answers.md>"
+    },
+    {
+      "label": "Email",
+      "selector": "#email",
+      "type": "email",
+      "value": "<from application-answers.md>"
+    },
+    {
+      "label": "Are you authorized to work in the United States?",
+      "selector": "select#question_4001",
+      "type": "select",
+      "value": "Yes",
+      "source": "application-answers.md → Work authorization"
+    },
+    {
+      "label": "Will you now or in the future require sponsorship?",
+      "name": "question_4002",
+      "type": "radio",
+      "value": "No",
+      "source": "application-answers.md → Sponsorship"
+    },
+    {
+      "label": "I agree to the privacy policy",
+      "selector": "#consent",
+      "type": "checkbox",
+      "value": true
+    },
+    {
+      "label": "Why do you want to work here?",
+      "selector": "textarea#question_4010",
+      "type": "textarea",
+      "value": "<drafted from the tailored resume and the JD — nothing not already true>"
+    },
+    {
+      "label": "Resume/CV",
+      "selector": "input[type=file]#resume",
+      "type": "file",
+      "value": "resume.pdf"
+    }
+  ],
+  "_fields": [
+    "label    — required. The question as a human reads it. This is the fallback locator when",
+    "           the selector goes stale, which ATS ids reliably do, so keep it verbatim.",
+    "selector — CSS selector observed in the live form. Optional but preferred.",
+    "name     — the input's name attribute; for radios it is how the group is found.",
+    "type     — text | email | tel | textarea | select | radio | checkbox | file",
+    "value    — what to enter. For checkbox, true/false. For file, the file name only.",
+    "source   — where the answer came from. Free text, for the audit trail."
+  ],
+
+  "gaps": [
+    {
+      "label": "Desired salary",
+      "why": "no salary line in application-answers.md — left blank rather than guessed"
+    }
+  ],
+
+  "notes": [
+    "Anything the run wants the user to know before submitting: a field the form rejected,",
+    "a question that appeared only after another answer, a login it could not get past."
+  ]
+}

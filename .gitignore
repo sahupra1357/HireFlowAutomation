@@ -1,0 +1,31 @@
+# Personal data — never commit
+jobs/input/profile/source-resumes/
+jobs/input/profile/master-resume.md
+jobs/input/profile/links.md
+jobs/input/config/application-answers.md
+jobs/input/config/search-profile.md
+jobs/input/config/job-sites.md.bak-2026-09-07
+
+# Agent output — per-user, never commit
+jobs/output/jobs.md
+jobs/output/run-log.md
+jobs/output/history/
+jobs/output/jds/
+jobs/output/applications/
+jobs/output/logs/
+.resets/
+jobs/output/.daily-run.lock
+jobs/tasks/search.md.bak-2026-09-07
+interviews/output/interviews.md
+interviews/output/reports/
+
+# Keep the scaffolding
+!jobs/output/tracker.md
+!.gitkeep
+
+# Build artifacts
+bin/
+/dashboard
+
+.DS_Store
+.gstack/
