@@ -146,6 +146,12 @@ def main():
                 err(f"`{jid}` Resume ✓ but applications/{jid}/resume.md is missing")
             elif not (app / "resume.pdf").exists():
                 warn(f"`{jid}` has resume.md but no resume.pdf — run: make pdf JOB={jid}")
+            kw = app / "keywords.json"
+            newest = max(p.stat().st_mtime for p in (app / "resume.md", jd_file) if p.exists())
+            if not kw.exists():
+                warn(f"`{jid}` has no keyword coverage — run: make keywords JOB={jid}")
+            elif kw.stat().st_mtime < newest:
+                warn(f"`{jid}` keyword coverage is older than its resume/JD — run: make keywords JOB={jid}")
         elif (app / "resume.md").exists():
             warn(f"`{jid}` Resume column is — but applications/{jid}/resume.md exists")
 

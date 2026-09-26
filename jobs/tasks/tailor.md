@@ -175,6 +175,29 @@ note the page count in the report. The PDF engine is headless Chrome; if none is
 
 **In batch mode the parent renders PDFs** with a single `make pdf` after the batch — see below.
 
+### Then measure keyword coverage
+
+```bash
+jobs/bin/keyword-coverage.py <job-id>     # → applications/<job-id>/keywords.json + one line
+```
+
+Deterministic, no model call. It scores the JD's `## ATS keywords` against `resume.md`
+(receipt stripped) and sorts every keyword into one bucket:
+
+- **hit** — in the resume.
+- **missed, in master** — the master resume has it and this resume doesn't. The only bucket
+  worth acting on: if the JD cares about it, promote the master line that carries it and
+  re-run. If it was dropped deliberately (irrelevant bullet, page length), leave it and say
+  why in the log.
+- **not in master** — correctly absent. **Never add one to raise the number** — that is
+  fabrication with a metric attached. These are the gaps from Step 3.
+- **check rephrase** — in the resume but not literally in the master: the JD's word for
+  something the master says differently. Confirm each is a fair rephrase, not a new claim.
+
+The number is a diagnostic, not a target. 60% with every miss in *not in master* is an
+honest resume for a job that wants things the user lacks; 95% reached by stuffing is a
+resume that will fail the first interview question.
+
 ## Step 6 — Cover letter, if the application wants one
 
 Only when the posting requires one (the JD file's *Application form — observed* section says
@@ -198,15 +221,17 @@ Tailored for anthropic--forward-deployed-engineer
   Dropped:    2 bullets (Android work, irrelevant here)
   Added:      0 ✓
 
-  Keywords hit:      FDE, LLM, Python, customer-facing, prototype-to-production
-  Not claimed (gap): Kubernetes, Terraform
+  Keyword coverage:  78% (7/9) · missed, in master: none · not in master: Kubernetes, Terraform
 
   → jobs/output/applications/anthropic--forward-deployed-engineer/resume.pdf (1 page)
 ```
 
 Ask the user to review before it gets uploaded anywhere. Then update the index: Status
 `tailored` and **Resume** `✓ <date>` in `jobs/output/jobs.md`, the same in the per-job log and
-`jobs/output/tracker.md`.
+`jobs/output/tracker.md`. In the job's `## Details` block, add (or replace) one line with
+the coverage figure — the dashboard shows the same number beside the Resume ✓:
+
+`- **Keyword coverage:** 78% (7/9) · missed, in master: — · not in master: Kubernetes, Terraform`
 
 ## Step 8 — Hand off
 
@@ -282,8 +307,10 @@ lines changed vs the master, and whether a cover letter was written.
 
 ### Collect
 
-Per job, in the parent: render the PDF (Step 5), then set Status `tailored` and **Resume**
-`✓ <date>` in `jobs/output/jobs.md` and the tracker. A subagent that reports a rule violation
+Per job, in the parent: render the PDF (Step 5), run `jobs/bin/keyword-coverage.py` on the
+batch's job IDs (one call, all IDs), then set Status `tailored`, **Resume** `✓ <date>` and
+the *Keyword coverage* Details line in `jobs/output/jobs.md` and the tracker. Subagents never
+write `keywords.json`'s figure into shared files — the parent does, from the script. A subagent that reports a rule violation
 (bullets added > 0) or an empty result gets its output **rejected, not published** — say so
 in the report and leave that job untailored.
 
@@ -291,6 +318,9 @@ in the report and leave that job untailored.
 Tailored — 7 jobs
 
   ✓ 7 resumes   jobs/output/applications/<job-id>/resume.pdf
+  Keyword coverage: 71–94% · 2 jobs with keywords missed that the master has:
+    ramp        — observability (in master, not promoted)
+    perplexity  — evals
   ⚠ 2 skipped   valthos (JD manual-required) · aptura (already tailored, use --force)
 
   Gaps worth knowing:

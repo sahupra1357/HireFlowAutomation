@@ -56,6 +56,8 @@ emits them as `—`; the row must have all 15 cells or the dashboard's table goe
 - **Nice-to-have:** {{}}
 - **Gaps:** {{what the user does not have — be honest, this drives the tailoring}}
 
+- **Keyword coverage:** *(written by `/job tailor` — `jobs/bin/keyword-coverage.py`; absent until tailored)*
+
 ### Keywords for ATS
 {{comma-separated terms lifted from the JD that the tailored resume should legitimately hit}}
 
