@@ -9,6 +9,7 @@ package main
 // re-run of /job tailor shows up on refresh.
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"net/http"
@@ -38,6 +39,7 @@ func linkDocs(p *page, liveDir string) {
 	ids := p.Summary.col("Job ID")
 	p.ResumeJob = make([]string, len(p.Summary.Rows))
 	p.DocJob = make([]string, len(p.Summary.Rows))
+	p.Kw = make([]kwCov, len(p.Summary.Rows))
 	for i := range p.Summary.Rows {
 		id := strings.TrimSpace(cell(ids, i))
 		if !jobIDRe.MatchString(id) {
@@ -47,10 +49,56 @@ func linkDocs(p *page, liveDir string) {
 		if _, err := os.Stat(filepath.Join(app, "resume.md")); err == nil {
 			p.ResumeJob[i] = id
 			p.DocJob[i] = id
+			p.Kw[i] = loadKw(filepath.Join(app, "keywords.json"))
 		} else if _, err := os.Stat(filepath.Join(app, "evaluation.md")); err == nil {
 			p.DocJob[i] = id
 		}
 	}
+}
+
+// kwCov is the part of keywords.json the table shows: a percentage beside the Resume ✓,
+// coloured by band, with what was missed in the tooltip.
+type kwCov struct {
+	Pct  int
+	Band string // hi ≥ 80 · mid ≥ 60 · lo
+	Tip  string
+}
+
+func loadKw(path string) kwCov {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return kwCov{}
+	}
+	var k struct {
+		Total       int      `json:"total"`
+		Coverage    float64  `json:"coverage"`
+		Hit         []string `json:"hit"`
+		Missed      []string `json:"missed"`
+		NotInMaster []string `json:"not_in_master"`
+		Rephrased   []string `json:"rephrased"`
+	}
+	if json.Unmarshal(b, &k) != nil || k.Total == 0 {
+		return kwCov{}
+	}
+	c := kwCov{Pct: int(k.Coverage*100 + 0.5), Band: "lo"}
+	switch {
+	case c.Pct >= 80:
+		c.Band = "hi"
+	case c.Pct >= 60:
+		c.Band = "mid"
+	}
+	tip := []string{fmt.Sprintf("JD keywords in the resume: %d of %d", len(k.Hit), k.Total)}
+	if len(k.Missed) > 0 {
+		tip = append(tip, "Missed, but in your master resume: "+strings.Join(k.Missed, ", "))
+	}
+	if len(k.NotInMaster) > 0 {
+		tip = append(tip, "Not in your master (correctly left out): "+strings.Join(k.NotInMaster, ", "))
+	}
+	if len(k.Rephrased) > 0 {
+		tip = append(tip, "Check the rephrase: "+strings.Join(k.Rephrased, ", "))
+	}
+	c.Tip = strings.Join(tip, "\n")
+	return c
 }
 
 // doc is one file the viewer can show, plus how to reach it.

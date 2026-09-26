@@ -62,6 +62,9 @@ type page struct {
 	// DocJob[r] is row r's job ID when it has anything to open — a tailored resume or a
 	// /job evaluate report — so the Status pill links before tailoring has run.
 	DocJob []string
+	// Kw[r] is row r's keyword coverage from applications/<id>/keywords.json (written by
+	// jobs/bin/keyword-coverage.py), shown beside the Resume ✓. Zero value = not computed.
+	Kw []kwCov
 
 	// ColMeta is SumCols as JSON for the filter popover, which needs each column's kind
 	// and value vocabulary client-side. Emitted into a <script type="application/json">

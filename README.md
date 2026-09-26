@@ -399,6 +399,30 @@ To see the layout before making a file, open the resume in the dashboard and cli
 **print view ↗** — that is the same page the PDF is printed from, so ⌘P → Save as PDF gives
 you the identical document.
 
+### Keyword coverage
+
+```bash
+make keywords                 # every tailored job   (JOB=<job-id> for one)
+```
+
+How many of the JD's ATS keywords the tailored resume actually carries, e.g.
+`78% (7/9)`. `/job tailor` runs it after every resume; the dashboard shows the figure beside
+the Resume ✓ (green ≥ 80, amber ≥ 60, red below), and hovering it shows the breakdown. Every
+keyword falls into one bucket:
+
+- **hit** — in the resume.
+- **missed, in master** — your master resume has it and this resume doesn't: the one bucket
+  worth acting on.
+- **not in master** — you don't have it, so it's correctly absent. It lowers the
+  percentage and should: that's the job asking for something you lack, and adding it would
+  be fabrication.
+- **check rephrase** — in the resume but not literally in the master (the JD's word for
+  something you say differently). Worth a glance to confirm it's fair.
+
+It's a diagnostic, not a target — a lower number made of honest gaps beats a high one made
+of stuffing. Deterministic, no model call; written to
+`jobs/output/applications/<job-id>/keywords.json`.
+
 ## Filling applications in batch
 
 ```
@@ -643,6 +667,8 @@ What it surfaces beyond the table:
   button. Esc closes it; "open in a tab ↗" gives it a page of its own at `/doc?job=<job-id>`,
   and **print view ↗** shows the resume in the layout the PDF is printed from. Only rows
   whose file is actually on disk are linked.
+- **Keyword coverage** — the percentage beside each Resume ✓, coloured by band; hover for
+  what was missed and why (see [Keyword coverage](#keyword-coverage)).
 - **Where each job stands** — the **Status** column plus **JD / Resume / Form** (`✓ <date>`,
   `⏳ manual`, `—`). There was a computed **Stage** column saying the same thing in one word;
   it is off, because it restated three columns already in the row. The stage itself still
@@ -674,6 +700,7 @@ own lists them.
 | `make submitted JOB=<id>` | record that **you** submitted one — stops it reappearing tomorrow |
 | **artifacts** | |
 | `make pdf` | render every tailored `resume.md` to `resume.pdf` (`JOB=<job-id>` for one) |
+| `make keywords` | JD keyword coverage of each tailored resume (`JOB=<job-id>` for one) |
 | `make refill` | regenerate the replay scripts from each job's `form-fill.json` |
 | **the board** | |
 | `make web` | run the dashboard in the background (`make stop` stops it; `make web-fg` for foreground) |

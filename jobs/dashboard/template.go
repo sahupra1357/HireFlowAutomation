@@ -29,6 +29,8 @@ nav button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--acc
 nav .count{display:inline-block;background:var(--chip);border-radius:9px;padding:0 6px;
   margin-left:6px;font-size:11px;color:var(--muted)}
 .nw{white-space:nowrap}
+.kw{margin-left:6px;font-size:11px;font-variant-numeric:tabular-nums;cursor:help}
+.kw-hi{color:var(--ok)} .kw-mid{color:var(--warn)} .kw-lo{color:var(--bad)}
 .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -219,12 +221,12 @@ td a.doc:hover{text-decoration:underline}
 <thead>
 <tr class="hrow">{{range $i,$c := .SumCols}}<th data-i="{{$i}}" data-kind="{{$c.Kind}}"><span class="hlab" title="Sort by {{$c.Name}}">{{$c.Name}}</span><span class="sar"></span><button class="fbtn" type="button" title="Filter {{$c.Name}}" aria-label="Filter {{$c.Name}}"><svg viewBox="0 0 12 12" width="9" height="9" aria-hidden="true"><path d="M1 2h10L7 6.5V11L5 9.6V6.5z" fill="currentColor"/></svg></button></th>{{end}}</tr>
 </thead>
-<tbody>{{range $ri,$row := .Cells}}{{$job := index $.ResumeJob $ri}}{{$doc := index $.DocJob $ri}}<tr>
+<tbody>{{range $ri,$row := .Cells}}{{$job := index $.ResumeJob $ri}}{{$doc := index $.DocJob $ri}}{{$kw := index $.Kw $ri}}<tr>
 {{range $i,$c := $row}}{{$n := (index $.SumCols $i).Name}}{{if eq $n "Stage"}}<td><span class="stage g-{{slug $c}}">{{$c}}</span></td>
 {{else if eq $n "Verified"}}<td><span class="v-{{slug $c}}">{{$c}}</span></td>
 {{else if eq $n "Status"}}<td>{{if $doc}}<a class="pill s-{{slug $c}} doc" href="/doc?job={{$doc}}" title="Open this job's documents">{{$c}}</a>{{else}}<span class="pill s-{{slug $c}}">{{$c}}</span>{{end}}</td>
 {{else if or (eq $n "JD") (eq $n "Form")}}<td class="nw">{{$c}}</td>
-{{else if eq $n "Resume"}}<td class="nw">{{if $job}}<a class="doc" href="/doc?job={{$job}}" title="Open the tailored resume">{{$c}}</a>{{else}}{{$c}}{{end}}</td>
+{{else if eq $n "Resume"}}<td class="nw">{{if $job}}<a class="doc" href="/doc?job={{$job}}" title="Open the tailored resume">{{$c}}</a>{{if $kw.Pct}}<span class="kw kw-{{$kw.Band}}" title="{{$kw.Tip}}">{{$kw.Pct}}%</span>{{end}}{{else}}{{$c}}{{end}}</td>
 {{else if isURL $c}}<td><a href="{{$c}}" target="_blank" rel="noopener">{{short $c}}</a></td>
 {{else}}<td>{{$c}}</td>{{end}}{{end}}
 </tr>{{end}}</tbody></table></div>

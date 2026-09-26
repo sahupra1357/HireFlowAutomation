@@ -10,7 +10,7 @@ BIN  ?= bin/jobs-dashboard
 WEBLOG ?= jobs/output/logs/dashboard.log
 
 .DEFAULT_GOAL := help
-.PHONY: help web web-fg pdf refill daily morning init submitted doctor doctor-setup doctor-index reset build install run-bin fmt vet check clean stats ix-stats history snapshot stop status
+.PHONY: help web web-fg pdf keywords refill daily morning init submitted doctor doctor-setup doctor-index reset build install run-bin fmt vet check clean stats ix-stats history snapshot stop status
 
 help: ## Show this help
 	@echo "HireFlow — make targets"
@@ -46,6 +46,9 @@ pdf: build ## Render tailored resumes in the source-resume format (JOB=<job-id>,
 	  echo "editing your own .docx per job → resume.docx + resume.pdf (exported by Word)"; \
 	  .venv/bin/python jobs/bin/docx-resume.py render "$(or $(JOB),all)"; \
 	else "./$(BIN)" -f "$(JOBS)" -pdf "$(or $(JOB),all)"; fi
+
+keywords: ## Score JD keyword coverage of each tailored resume (JOB=<job-id>, default all)
+	@python3 jobs/bin/keyword-coverage.py $(or $(JOB),--all)
 
 refill: ## Regenerate the replay scripts from form-fill.json (JOB=<job-id>, default all)
 	@python3 jobs/bin/make-refill.py $(or $(JOB),--all)

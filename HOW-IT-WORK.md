@@ -188,7 +188,12 @@ Then:
 5. `make pdf` renders it: with a mapped `.docx` it edits a copy of **your own Word file** and
    exports `resume.docx` + `resume.pdf`; otherwise it renders in the layout measured from
    your source resume. Only the words change between jobs.
-6. Writes a cover letter if the application wants one.
+6. `jobs/bin/keyword-coverage.py` measures **keyword coverage**: the share of the JD's ATS
+   keywords the resume carries (e.g. `78% (7/9)`). It splits the misses into *missed, in
+   master* (worth fixing) and *not in master* (correctly absent — never added to lift the
+   number), and flags hits worded differently from the master to check. The figure goes in
+   the job's Details block and beside the Resume ✓ on the dashboard.
+7. Writes a cover letter if the application wants one.
 
 `/job tailor --all` does this for every job that has a JD, one subagent per job, at most 4 at
 once. Each subagent writes only inside its own `applications/<job-id>/` folder; the main
@@ -327,7 +332,8 @@ Two read-only scripts that exit non-zero on an error:
     every tracked file, and per-user files must be untracked.
 - **`check-index.py`** checks that:
   - every `jobs.md` row has the right number of cells, a valid job ID and a real status;
-  - every JD / Resume / Form ✓ has its file behind it;
+  - every JD / Resume / Form ✓ has its file behind it, and each resume's keyword coverage
+    is present and newer than the resume and JD;
   - no status is ahead of its artifacts;
   - there are no orphan JDs or application folders;
   - `tracker.md` agrees with `jobs.md`;
