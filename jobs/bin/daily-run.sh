@@ -5,19 +5,34 @@
 #   jobs/bin/daily-run.sh --unattended # what launchd calls: no prompts, quieter
 #   make daily                         # same as the first
 #
-# Three stages, in order. Any one of them can be skipped:
+# What it searches depends on whether `/job setup` has run:
 #
-#   1. /job              the auto pipeline — search, verify, capture JDs, tailor resumes.
-#                        Reconciles: finished work is skipped, duplicates are dropped by
-#                        job ID, a stuck job never stops the batch. Stops at `tailored`.
-#                        (--no-search skips this stage)
-#   2. /job apply --batch    maps any newly tailored posting's form and fills it in a
-#                        visible browser. Never asks, never waits, never submits.
+#   set up      — master-resume.md is populated AND jobs/input/config/setup-families.md
+#                 exists. Searches ONLY the families the user confirmed in setup, one
+#                 `/job search "<family>"` per family, each with its own Result limit.
+#   not set up  — falls back to ONE `/job search --limit $FALLBACK_LIMIT` (default 50) across
+#                 every family in search-profile.md's generic list, 50 jobs in total.
+#                 Tailoring then degrades as auto.md describes (no resume → no tailoring).
+#
+# Four stages, in order. Any agent stage can be skipped:
+#
+#   1. search            as above. Mechanical work, so it runs on $SEARCH_MODEL
+#                        (default sonnet). (--no-search skips this stage)
+#   2. /job auto --skip-search   triage by the Auto-tailor threshold, capture JDs, tailor
+#                        resumes. Judgment-heavy (fit scoring, no-fabrication tailoring),
+#                        so it runs on $REASON_MODEL (default opus). Stops at `tailored`.
+#                        (--no-tailor skips this stage)
+#   3. /job apply --batch    maps any newly tailored posting's form and fills it in a
+#                        visible browser on $APPLY_MODEL (default sonnet). Never asks,
+#                        never waits, never submits.
 #                        (--no-apply skips this stage)
-#   3. morning-run.sh    re-opens/refills every mapped, unsubmitted application, so the
-#                        tabs are all there even for jobs stage 2 had nothing new to do.
+#   4. morning-run.sh    re-opens/refills every mapped, unsubmitted application, so the
+#                        tabs are all there even for jobs stage 3 had nothing new to do.
 #
-# Stages 1 and 2 are agent runs: they cost tokens. Stage 3 is free.
+# Stages 1–3 are agent runs: they cost tokens. Stage 4 is free.
+#
+# Models are any value `claude --model` accepts (alias or full ID), overridable per run:
+#   SEARCH_MODEL=haiku REASON_MODEL=opus FALLBACK_LIMIT=25 make daily
 #
 # It cannot submit anything. That is a workspace rule the agent follows, and the two
 # fill scripts click no submit control.
@@ -26,16 +41,22 @@ set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 ROOT=$(pwd)
 
-DO_SEARCH=1; DO_APPLY=1; UNATTENDED=0
+DO_SEARCH=1; DO_TAILOR=1; DO_APPLY=1; UNATTENDED=0
 for a in "$@"; do
   case "$a" in
     --no-search) DO_SEARCH=0 ;;
+    --no-tailor) DO_TAILOR=0 ;;
     --no-apply)  DO_APPLY=0 ;;
     --unattended) UNATTENDED=1 ;;
-    -h|--help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown flag: $a"; exit 1 ;;
   esac
 done
+
+SEARCH_MODEL=${SEARCH_MODEL:-sonnet}
+REASON_MODEL=${REASON_MODEL:-opus}
+APPLY_MODEL=${APPLY_MODEL:-sonnet}
+FALLBACK_LIMIT=${FALLBACK_LIMIT:-50}
 
 # An unattended agent cannot answer a permission prompt, so the scheduled run bypasses them.
 # Override with PERMISSION_MODE=acceptEdits (etc.) if you keep a tighter allowlist.
@@ -66,20 +87,58 @@ echo $$ > "$LOCK/pid"
 trap 'rm -rf "$LOCK"' EXIT INT TERM
 
 # ── preflight ────────────────────────────────────────────────────────────────
-command -v claude >/dev/null || { say "claude CLI not on PATH — install it or run with --no-search --no-apply"; exit 1; }
+command -v claude >/dev/null || { say "claude CLI not on PATH — install it or run with --no-search --no-tailor --no-apply"; exit 1; }
 B="$HOME/.claude/skills/gstack/browse/dist/browse"
 [ -x "$ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$ROOT/.claude/skills/gstack/browse/dist/browse"
-[ -x "$B" ] || { say "gstack browse not found — stage 2 and 3 need it"; exit 1; }
+[ -x "$B" ] || { say "gstack browse not found — stages 3 and 4 need it"; exit 1; }
 
 say ""
 say "════════ daily run · $(date '+%F %H:%M') ════════"
 say "  log: $LOG"
+say "  models: search=$SEARCH_MODEL · triage/JD/tailor=$REASON_MODEL · apply=$APPLY_MODEL"
 
-agent() {                     # $1 = prompt, $2 = label
+# ── has /job setup run? ──────────────────────────────────────────────────────
+# Setup is interactive (it asks which families to keep), so an unattended run can't do it.
+# It can only check whether it happened: setup writes the confirmed families — and only
+# those — to setup-families.md. That file present means "search exactly these".
+MASTER="$ROOT/jobs/input/profile/master-resume.md"
+PROFILE="$ROOT/jobs/input/config/search-profile.md"
+CONFIRMED="$ROOT/jobs/input/config/setup-families.md"
+
+# "### " headings under "## Families": strip the "N. " prefix and any trailing italic note
+# like "*(thin — confirm …)*". The rest is passed verbatim as the search focus, so it matches
+# the Profile column search.md stamps on each row.
+families() {
+  awk '/^## Families/{on=1; next} /^## /{on=0} on && /^### /' "$CONFIRMED" 2>/dev/null \
+    | sed -E 's/^### +//; s/^[0-9]+\. +//; s/ *\*\(.*$//; s/[[:space:]]+$//' \
+    | grep -v '{{'
+}
+
+MASTER_OK=1
+if [ ! -s "$MASTER" ] || grep -q 'STATUS: not yet populated' "$MASTER" || ! grep -q '^### ' "$MASTER"; then
+  MASTER_OK=0
+fi
+FAMILIES=()
+while IFS= read -r f; do [ -n "$f" ] && FAMILIES+=("$f"); done < <(families)
+
+if [ "$MASTER_OK" = "1" ] && [ "${#FAMILIES[@]}" -gt 0 ]; then
+  MODE=setup
+  say "  families: ${#FAMILIES[@]} confirmed in setup-families.md — $(printf '%s · ' "${FAMILIES[@]}" | sed 's/ · $//')"
+else
+  MODE=fallback
+  [ "$MASTER_OK" = "0" ] && say "  ✋ master-resume.md is empty — tailoring will be skipped until /job setup runs."
+  [ "${#FAMILIES[@]}" -eq 0 ] && say "  ✋ no setup-families.md — /job setup hasn't confirmed your families."
+  say "  fallback: one search across search-profile.md's generic families, limit $FALLBACK_LIMIT total."
+  say "  Run /job setup in Claude to search only the families you pick."
+fi
+T=$(sed -nE 's/^### Auto-tailor threshold: *([0-9]+).*/\1/p' "$PROFILE" | head -1)
+say "  auto-tailor threshold: ${T:-75 (default — line missing from search-profile.md)}"
+
+agent() {                     # $1 = prompt, $2 = label, $3 = model
   say ""
-  say "── $2"
+  say "── $2   [$3]"
   local out
-  out=$(claude -p "$1" --permission-mode "$PERMISSION_MODE" --add-dir "$ROOT" 2>&1)
+  out=$(claude -p "$1" --model "$3" --permission-mode "$PERMISSION_MODE" --add-dir "$ROOT" 2>&1)
   printf '%s\n' "$out" >> "$LOG"
   if [ "$UNATTENDED" = "1" ]; then
     printf '%s\n' "$out" | tail -n 25
@@ -88,23 +147,37 @@ agent() {                     # $1 = prompt, $2 = label
   fi
 }
 
-# ── stage 1: search → JD → tailor ────────────────────────────────────────────
-if [ "$DO_SEARCH" = "1" ]; then
-  agent "/job" "stage 1 · search, JDs, tailoring"
+# ── stage 1: search ──────────────────────────────────────────────────────────
+# Serial on purpose: every search merges into the same jobs.md.
+if [ "$DO_SEARCH" = "1" ] && [ "$MODE" = "setup" ]; then
+  i=0
+  for fam in "${FAMILIES[@]}"; do
+    i=$((i+1))
+    agent "/job search $fam" "stage 1 · search $i/${#FAMILIES[@]} · $fam" "$SEARCH_MODEL"
+  done
+elif [ "$DO_SEARCH" = "1" ]; then
+  agent "/job search --limit $FALLBACK_LIMIT" "stage 1 · search · all generic families, limit $FALLBACK_LIMIT" "$SEARCH_MODEL"
 else
-  say ""; say "── stage 1 skipped (--no-search)"
+  say ""; say "── stage 1 skipped"
 fi
 
-# ── stage 2: map and fill any new forms ──────────────────────────────────────
+# ── stage 2: triage → JD → tailor ────────────────────────────────────────────
+if [ "$DO_TAILOR" = "1" ]; then
+  agent "/job auto --skip-search" "stage 2 · triage, JDs, tailoring" "$REASON_MODEL"
+else
+  say ""; say "── stage 2 skipped"
+fi
+
+# ── stage 3: map and fill any new forms ──────────────────────────────────────
 if [ "$DO_APPLY" = "1" ]; then
-  agent "/job apply --batch" "stage 2 · mapping and filling forms"
+  agent "/job apply --batch" "stage 3 · mapping and filling forms" "$APPLY_MODEL"
 else
-  say ""; say "── stage 2 skipped (--no-apply)"
+  say ""; say "── stage 3 skipped"
 fi
 
-# ── stage 3: make sure every mapped job is open and filled ───────────────────
+# ── stage 4: make sure every mapped job is open and filled ───────────────────
 say ""
-say "── stage 3 · opening every mapped application"
+say "── stage 4 · opening every mapped application"
 bash "$ROOT/jobs/bin/morning-run.sh" 2>&1 | tee -a "$LOG"
 
 # ── where things stand ───────────────────────────────────────────────────────

@@ -12,6 +12,8 @@ the resume you drop in; the roles it searches for are derived from that same res
 in a config file you can edit. It works the same for a Java full stack developer as for an AI
 engineer.
 
+New here? [HOW-IT-WORK.md](HOW-IT-WORK.md) walks through every stage step by step.
+
 ## Demo
 
 ![HireFlow — the jobs index, the dashboard, and a live application form being filled](docs/demo/hireflow-demo.gif)
@@ -45,6 +47,12 @@ cp ~/Downloads/my-resume.pdf jobs/input/profile/source-resumes/
 
 That's the whole thing. `/job` runs the pipeline: reads the resume, proposes 3–4 role
 families, searches, captures JDs, tailors a resume per job — and stops at `tailored`.
+
+For control over what it searches, run `/job setup` first: it proposes role families from
+your resume and asks you to keep, drop, or add. Only the ones you confirm are written to
+`jobs/input/config/setup-families.md`, and from then on every search — including
+`make daily` — targets exactly those. Without that file, the generic family list in
+`search-profile.md` is the fallback.
 
 Then fill the forms, either one at a time with you watching:
 
@@ -123,8 +131,8 @@ run with `/job <role> --country "United Kingdom"`.
   │                   gather ~3× the limit, rank, then verify       │
   │                   each is still live until the limit fills      │
   ├─────────────────────────────────────────────────────────────────┤
-  │ PASS 2   TRIAGE   fit 60+   → shortlist, carry through          │
-  │                   fit 40–59 → left for you to promote           │
+  │ PASS 2   TRIAGE   fit ≥ threshold (75) → shortlist, carry on    │
+  │                   fit 40–74 → left for you to promote           │
   │                   hard-filter fail → skipped, reason logged     │
   ├─────────────────────────────────────────────────────────────────┤
   │ PASS 3   JDs      captured → jds/<job-id>.md                    │──┐
@@ -179,7 +187,7 @@ And the parts you drive from the shell rather than from Claude Code:
 
 | | | |
 |---|---|---|
-| `make daily` | the whole loop end to end — the two agent stages, then the tabs | agent |
+| `make daily` | the whole loop end to end — search per role family (Sonnet), triage/JD/tailor (Opus), fill forms (Sonnet), then the tabs | agent |
 | `make morning` | re-open every mapped application, filled, in the browser | free |
 | `make pdf` | render the tailored resumes to PDF in your own resume's layout | free |
 | `make submitted JOB=<id>` | record that you submitted one | free |
@@ -206,14 +214,19 @@ jobs/
     profile/source-resumes/   ← drop your resume here (the only source of identity)
     profile/                  master-resume.md, links.md      (built by /job setup)
     config/                   job-sites.md      where to search — ATS board APIs first
-                              search-profile.md your role families, countries, filters, limits
+                              search-profile.md generic role families, countries, filters,
+                                                limits, the auto-tailor threshold
+                              setup-families.md the families YOU confirmed in /job setup
+                                                (when present, the only ones searched)
                               application-answers.md  the screening-question bank
+                              resume-format.md  your resume's layout, measured by setup
+                              resume-docx-map.json  where the text sits in your .docx
     templates/                the file formats the tasks write
   output/
     jobs.md                   the living index (what the dashboard reads)
     tracker.md                the status board (gitignored; `make init` seeds it)
     jds/<job-id>.md           full job descriptions
-    applications/<job-id>/    resume.md · resume.pdf · cover letter · log.md
+    applications/<job-id>/    resume.md · resume.pdf (· resume.docx) · cover letter · log.md
                               form-fill.json  the form's field map
                               refill.js       replay script for that form
                               screens/        what the filled form looked like
@@ -229,6 +242,8 @@ jobs/
     refill-engine.js          the replay engine those scripts are generated from
     mark-submitted.sh         make submitted — your confirmation that you sent one
     reset.sh                  make reset    — back to a fresh start
+    docx-resume.py            maps your .docx (setup) and edits a copy per job (make pdf)
+    verify-tailored.py        flags invented figures, years, certs in a tailored resume
   dashboard/                  Go web dashboard (make web) + the resume PDF renderer
 
 interviews/                   interview-experience intel, separate namespace
@@ -268,9 +283,10 @@ and carry on. You get the list of what it couldn't answer at the end, once.
   download it rather than guessing what the job wants.
 - **It never tailors without a resume.** No "I'll work from the JD instead."
 - **Your data stays local.** `jobs/input/profile/` goes to employer application forms and
-  nowhere else. `.gitignore` keeps `master-resume.md`, `links.md`,
-  `application-answers.md`, `source-resumes/`, and all of `jobs/output/` out of version
-  control; only the blank templates in `jobs/input/templates/` are committed.
+  nowhere else. `.gitignore` keeps `master-resume.md`, `links.md`, `source-resumes/`,
+  `application-answers.md`, `search-profile.md`, `setup-families.md`, `resume-format.md`,
+  `resume-docx-map.json`, and all of `jobs/output/` out of version control; only the blank
+  templates in `jobs/input/templates/` are committed.
 
 ## The tailored resume as a PDF
 
@@ -280,15 +296,21 @@ make pdf JOB=<job-id>         # just one
 ```
 
 `/job tailor` writes the words (`resume.md`); this puts them back into **your own resume's
-layout** — the two-column format measured off the file you dropped into
-`jobs/input/profile/source-resumes/`: US Letter, 1in margins, the shaded skills sidebar on the
-left, experience on the right, Aptos 12pt. Only the text changes from job to job, and only
-text that was already in `resume.md`; the tailoring receipt at the bottom of the Markdown is
-stripped. The result is `jobs/output/applications/<job-id>/resume.pdf` — the file `/job apply`
-uploads.
+format**. Only the text changes from job to job, and only text that was already in
+`resume.md`; the tailoring receipt at the bottom of the Markdown is stripped. The result is
+`jobs/output/applications/<job-id>/resume.pdf` — the file `/job apply` uploads. Which route
+it takes depends on what you dropped in:
 
-Rendering is headless Chrome, so there is nothing to install if you have Chrome (or the
-browser `/browse` already downloaded). `CHROME=/path/to/chrome make pdf` points it elsewhere.
+- **You dropped in a `.docx`** — `/job setup` maps where your summary, skill lines, bullets
+  and education sit (`jobs/bin/docx-resume.py map` → `jobs/input/config/resume-docx-map.json`).
+  `make pdf` then copies **your own Word file** per job and swaps in only the tailored text,
+  writing `resume.docx` and a Word-exported `resume.pdf`. The format is exactly yours because
+  it *is* your file. The first run creates `.venv/` and installs `python-docx` into it.
+- **Anything else (PDF / Markdown)** — `/job setup` measures page size, font, margins,
+  headings, date style and column layout off the source file into
+  `jobs/input/config/resume-format.md`, and `make pdf` renders every resume in that layout
+  with headless Chrome. Nothing to install if you have Chrome (or the browser `/browse`
+  already downloaded); `CHROME=/path/to/chrome make pdf` points it elsewhere.
 
 To see the layout before making a file, open the resume in the dashboard and click
 **print view ↗** — that is the same page the PDF is printed from, so ⌘P → Save as PDF gives
@@ -322,23 +344,40 @@ the blanks it listed, and submit the ones you want.
 make daily                         # search → JDs → tailored resumes → filled forms on screen
 ```
 
-Three stages, and you can stop after any of them:
+Four stages, each agent stage on the model suited to it:
 
-| Stage | What runs | What it does | Cost |
-|---|---|---|---|
-| 1 | `claude -p "/job"` | Searches the configured sites, drops duplicates by job ID, verifies what's still live, captures JDs, tailors a resume per job. Stops at `tailored`. | agent run |
-| 2 | `claude -p "/job apply --batch"` | Maps any newly tailored posting's form, fills it in the visible browser, uploads the PDF, records the field map. Never asks, never waits. | agent run |
-| 3 | `jobs/bin/morning-run.sh` | Opens/refills **every** mapped, unsubmitted application, so the tabs are all there — including jobs stage 2 had nothing new to do. | free |
+| Stage | What runs | What it does | Model | Cost |
+|---|---|---|---|---|
+| 1 | `/job search "<family>"` × each confirmed family | Searches the configured sites, drops duplicates by job ID, verifies what's still live. Mechanical work. | `SEARCH_MODEL` (sonnet) | agent run |
+| 2 | `/job auto --skip-search` | Triages by the **Auto-tailor threshold**, captures JDs, tailors a resume per job. Judgment-heavy. Stops at `tailored`. | `REASON_MODEL` (opus) | agent run |
+| 3 | `/job apply --batch` | Maps any newly tailored posting's form, fills it in the visible browser, uploads the PDF, records the field map. Never asks, never waits. | `APPLY_MODEL` (sonnet) | agent run |
+| 4 | `jobs/bin/morning-run.sh` | Opens/refills **every** mapped, unsubmitted application, so the tabs are all there — including jobs stage 3 had nothing new to do. | — | free |
 
-`--no-search` and `--no-apply` skip stages 1 and 2. A lock file stops a manual run and the
-scheduled one colliding on `jobs.md`, and each run logs to `jobs/output/logs/daily-<date>.log`
-(last 30 kept). Stage 3 restarts the browser by itself if the window was closed since
-yesterday.
+**What stage 1 searches depends on whether `/job setup` has run.** With a populated
+`master-resume.md` and a `setup-families.md`, it runs one search per family you confirmed,
+each with its own result limit. Without them, it runs a single
+`/job search --limit $FALLBACK_LIMIT` (default 50) across `search-profile.md`'s generic
+families, and stage 2 skips tailoring until there's a resume.
+
+**How many resumes get written** is set by one number in `search-profile.md` →
+*Fit scoring* → `Auto-tailor threshold` (default 75). Jobs at or above it are tailored; 40 up
+to the threshold wait for you to promote them.
+
+Override any of it per run:
+
+```bash
+SEARCH_MODEL=haiku REASON_MODEL=opus FALLBACK_LIMIT=25 make daily
+```
+
+`--no-search`, `--no-tailor` and `--no-apply` skip stages 1, 2 and 3. A lock file stops a
+manual run and the scheduled one colliding on `jobs.md`, and each run logs to
+`jobs/output/logs/daily-<date>.log` (last 30 kept). Stage 4 restarts the browser by itself if
+the window was closed since yesterday.
 
 **On cost.** "Agent run" means it consumes your Claude plan's usage, the same as typing the
 command yourself — not a separate API bill, unless you have `ANTHROPIC_API_KEY` set, which
-switches Claude Code to metered API billing. Stage 1 is the expensive one (live searches,
-whole JDs, a tailoring pass per job); stage 3 costs nothing at all. On a Pro plan a full run
+switches Claude Code to metered API billing. Stage 2 is the expensive one (whole JDs and a
+tailoring pass per job, on the strongest model); stage 4 costs nothing at all. On a Pro plan a full run
 every morning can eat into the window you wanted for your own work, so a reasonable split is
 `daily-run.sh` two or three days a week and `morning-run.sh` on the others — new postings
 don't appear fast enough to justify searching daily.
@@ -431,7 +470,7 @@ Weekdays at 07:30. `Weekday` is 1=Monday … 5=Friday; drop entries or change `H
 to taste. It runs in your GUI session, so the browser window appears on your desktop — and
 if the Mac is asleep at 07:30, launchd runs it when the machine wakes.
 
-Weekdays at 07:30, running the full three-stage loop. Swap `daily-run.sh --unattended` for
+Weekdays at 07:30, running the full four-stage loop. Swap `daily-run.sh --unattended` for
 `morning-run.sh` if you'd rather the schedule only re-opened yesterday's tabs and never spent
 tokens. Each run's detail lands in `jobs/output/logs/daily-<date>.log`; launchd's own copy of
 stdout goes to `/tmp/jobs-daily.log`.
@@ -496,14 +535,15 @@ vanish is worse than no tab. Without a terminal to confirm at, it refuses unless
 ## The dashboard
 
 ```bash
-make web                    # → http://localhost:8080   (Ctrl+C to stop)
-make stop                   # stop it from another terminal
+make web                    # → http://localhost:8080, runs in the background
+make stop                   # stop it
 make status                 # is it running, and on what port
+make web-fg                 # run it in this terminal instead (Ctrl+C to stop)
 ```
 
-`make web` runs in the foreground — **Ctrl+C stops it.** If you backgrounded it, closed the
-terminal, or Ctrl+C didn't take, `make stop` kills it; `make status` says whether anything is
-still listening.
+`make web` starts the dashboard **in the background** and hands your terminal back; its output
+goes to `jobs/output/logs/dashboard.log`. Running it again restarts it — do that after
+changing the dashboard code, since the page is compiled in. `make stop` stops it.
 
 Tabs for **Summary**, **Unverified backlog**, **Interviews**, and **Dashboard** (stats). It
 re-reads `jobs/output/jobs.md` on every request, so a status change written by `/job apply`
@@ -551,7 +591,7 @@ own lists them.
 | `make pdf` | render every tailored `resume.md` to `resume.pdf` (`JOB=<job-id>` for one) |
 | `make refill` | regenerate the replay scripts from each job's `form-fill.json` |
 | **the board** | |
-| `make web` | run the dashboard (foreground; Ctrl+C stops it) |
+| `make web` | run the dashboard in the background (`make stop` stops it; `make web-fg` for foreground) |
 | `make stop` / `status` | stop a running dashboard · is one running, and where |
 | `make stats` / `ix-stats` | print job / interview counts without starting a server |
 | `make snapshot` / `history` | back up `jobs.md` now · list the snapshots |

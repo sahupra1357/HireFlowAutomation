@@ -15,7 +15,7 @@ const pageHTML = `<!doctype html>
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
   font:14px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Inter,system-ui,sans-serif}
-.wrap{max-width:1400px;margin:0 auto;padding:28px 22px 60px}
+.wrap{max-width:none;width:100%;box-sizing:border-box;margin:0;padding:24px 20px 60px}
 header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px}
 h1{font-size:21px;margin:0;letter-spacing:-.01em}
 .sub{color:var(--muted);font-size:12.5px}
@@ -28,6 +28,7 @@ nav button:hover{color:var(--ink)}
 nav button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent)}
 nav .count{display:inline-block;background:var(--chip);border-radius:9px;padding:0 6px;
   margin-left:6px;font-size:11px;color:var(--muted)}
+.nw{white-space:nowrap}
 .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -222,7 +223,8 @@ td a.doc:hover{text-decoration:underline}
 {{range $i,$c := $row}}{{$n := (index $.SumCols $i).Name}}{{if eq $n "Stage"}}<td><span class="stage g-{{slug $c}}">{{$c}}</span></td>
 {{else if eq $n "Verified"}}<td><span class="v-{{slug $c}}">{{$c}}</span></td>
 {{else if eq $n "Status"}}<td>{{if $job}}<a class="pill s-{{slug $c}} doc" href="/doc?job={{$job}}" title="Open the tailored resume">{{$c}}</a>{{else}}<span class="pill s-{{slug $c}}">{{$c}}</span>{{end}}</td>
-{{else if eq $n "Resume"}}<td>{{if $job}}<a class="doc" href="/doc?job={{$job}}" title="Open the tailored resume">{{$c}}</a>{{else}}{{$c}}{{end}}</td>
+{{else if or (eq $n "JD") (eq $n "Form")}}<td class="nw">{{$c}}</td>
+{{else if eq $n "Resume"}}<td class="nw">{{if $job}}<a class="doc" href="/doc?job={{$job}}" title="Open the tailored resume">{{$c}}</a>{{else}}{{$c}}{{end}}</td>
 {{else if isURL $c}}<td><a href="{{$c}}" target="_blank" rel="noopener">{{short $c}}</a></td>
 {{else}}<td>{{$c}}</td>{{end}}{{end}}
 </tr>{{end}}</tbody></table></div>

@@ -36,7 +36,7 @@ job. It stops at `tailored`; it cannot fill a form. For a read-only look, `/job 
 | `apply` | `fill` | `jobs/tasks/apply.md` | job-id **(required)**, or `--batch [job-id ...]` |
 | `status` | `track`, `tracker`, `board` | `jobs/tasks/status.md` | — |
 | `interviews` | `ix`, `prep` | `jobs/tasks/interviews.md` | company |
-| `auto` | *(no argument)*, `run`, `all`, `pipeline` | `jobs/tasks/auto.md` | `--fresh`, `--limit N`, `--country "<list>"` |
+| `auto` | *(no argument)*, `run`, `all`, `pipeline` | `jobs/tasks/auto.md` | `--fresh`, `--limit N`, `--country "<list>"`, `--skip-search` |
 
 Paths are relative to the workspace root. Resolve them from the repo root, not from the
 skill directory:
@@ -149,6 +149,16 @@ last 50. `make web` renders any of them from its version picker.
 
 The index is a single Markdown file that every stage merges into; a snapshot is the only
 thing standing between a bad merge and a lost job hunt.
+
+## Where role families come from
+
+Every task that reads role families — `search`, `triage`, `auto`, fit scoring, the Profile
+column — takes them from **`jobs/input/config/setup-families.md` when that file exists**.
+It holds only what the user confirmed in `/job setup`. The family list in
+`search-profile.md` is the generic fallback, read only when `setup-families.md` is absent.
+Everything else in `search-profile.md` (country, keywords, hard filters, limits, fit bands)
+applies either way. Wherever a task file says "the role families in `search-profile.md`",
+read it as "the active family list" per this rule.
 
 ## Rules that outrank every task file
 

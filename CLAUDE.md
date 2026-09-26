@@ -76,6 +76,9 @@ user provides, `output/` is what the agent produces.
 | `jobs/input/profile/links.md` | LinkedIn, GitHub, portfolio, references. Gitignored. |
 | `jobs/input/config/job-sites.md` | Sites to search, how to reach each one, per-site notes. **User-editable.** |
 | `jobs/input/config/search-profile.md` | **The role families** the search targets, plus keywords, locations, comp floor, hard filters. User-defined, any number of families, no domain baked in. Seeded from `jobs/input/templates/search-profile.md` by `/job setup`. |
+| `jobs/input/config/resume-docx-map.json` | **Where the content sits in the user's own `.docx`** — summary, skill lines, each job's bullets, education — mapped by `/job setup` with `jobs/bin/docx-resume.py map`. `make pdf` then copies that `.docx` per job and swaps in only the tailored text (→ `resume.docx` + a Word-exported `resume.pdf`), so the format is exactly theirs. Gitignored. |
+| `jobs/input/config/resume-format.md` | **The layout of the user's own resume** — page size, font, margins, headings, date style, single-column vs sidebar — measured by `/job setup` off the source file. `make pdf` renders every tailored resume in it, so only the words change. Gitignored. Template: `jobs/input/templates/resume-format.md`. |
+| `jobs/input/config/setup-families.md` | **Only the role families the user confirmed in `/job setup`.** Written by setup and nothing else, replaced whole each time. When present it is the family list every task and `make daily` search, and `search-profile.md`'s family list is the generic fallback. Gitignored. Template: `jobs/input/templates/setup-families.md`. |
 | `jobs/input/config/application-answers.md` | The screening-question answer bank. Grows over time. Gitignored. |
 | `jobs/input/templates/` | The file formats the skills write, plus blank copies of the personal/config files (`master-resume.md`, `links.md`, `application-answers.md`, `search-profile.md`, `tracker.md`). Read the template before writing. |
 | `jobs/output/jobs.md` | **The living index.** Summary + Unverified backlog + Excluded + Details. `/job search` merges into it; every later skill updates its **Status** and **JD / Resume / Form** columns in place. Never rewritten from scratch. |
@@ -87,7 +90,7 @@ user provides, `output/` is what the agent produces.
 | `jobs/bin/fill-form.py` | Replays a job's `form-fill.json` into the **visible** browser — text, comboboxes, checkboxes, and a real `resume.pdf` upload. The mechanical half of `/job apply --batch`, and what `jobs/bin/morning-run.sh` calls for every mapped job each morning. Clicks no submit control. |
 | `jobs/bin/morning-run.sh` | `make morning` — re-opens every mapped, unsubmitted application filled in its own tab, re-using a tab already on that posting. No agent, no tokens. |
 | `jobs/bin/reset.sh` | `make reset` — puts the workspace back to a fresh start: deletes everything under `jobs/output/` and `interviews/output/`, restores `tracker.md` from `jobs/input/templates/tracker.md`, and leaves `jobs/input/` alone. `--profile` also wipes the resume, links and answer bank (then `/job setup` is required again). Archives whatever it removes to `.resets/` first, and refuses to run unattended without `--yes`. **Never run it on the user's behalf without them asking for it by name.** |
-| `jobs/bin/daily-run.sh` | `make daily` — the whole loop in one command: `/job` (search → JD → tailor), then `/job apply --batch` (map + fill), then `morning-run.sh` (open every mapped application). Locked so a manual run and the scheduled one can't both edit `jobs/output/jobs.md`. Stages 1–2 are agent runs; stage 3 is free. |
+| `jobs/bin/daily-run.sh` | `make daily` — the whole loop in one command. Stage 1, on `SEARCH_MODEL` (default `sonnet`): if setup has run (populated master resume + `setup-families.md`), `/job search "<family>"` once per confirmed family; otherwise one `/job search --limit $FALLBACK_LIMIT` (default 50) across `search-profile.md`'s generic families. Stage 2: `/job auto --skip-search` (triage → JD → tailor) on `REASON_MODEL` (default `opus`). Stage 3: `/job apply --batch` on `APPLY_MODEL` (default `sonnet`). Stage 4: `morning-run.sh` (free). Locked so a manual run and the scheduled one can't both edit `jobs/output/jobs.md`. |
 | `jobs/output/logs/daily-<date>.log` | One log per daily run, last 30 kept. |
 | `jobs/bin/mark-submitted.sh` | `make submitted JOB=<id>` — the user's own confirmation that they clicked Submit. The **only** thing that may set Status `submitted`, and what stops `make morning` re-opening a sent application every day. |
 | `jobs/bin/refill-engine.js` · `jobs/bin/make-refill.py` | The replay half of `/job apply --batch`: the generator turns a job's `form-fill.json` into a `refill.js` the user pastes into the application page's console to refill the form later. The engine never clicks a button, so it cannot submit. |
@@ -162,8 +165,8 @@ the next thing possible for it. Three consequences that matter:
 - **Finished work is never re-done.** `/job` on a settled workspace does almost nothing.
 
 Unattended, it stands in for the triage checkpoint with the fit bands from
-`search-profile.md`: 60+ auto-shortlists and carries through to `tailored`; 40–59 is left at
-`found` for the user to promote; hard-filter failures are `skipped` as usual. Inferred role
+`search-profile.md`: a fit at or above **Auto-tailor threshold** (default 75) auto-shortlists and
+carries through to `tailored`; 40 up to the threshold is left at `found` for the user to promote; hard-filter failures are `skipped` as usual. Inferred role
 families are marked provisional in `search-profile.md` and called out in the report — an
 unreviewed guess about what job someone wants is the most expensive thing here to get wrong.
 

@@ -64,7 +64,10 @@ grep -c '^### [0-9]' jobs/input/config/search-profile.md 2>/dev/null
 
 - **`master-resume.md` missing or TODO-heavy** → run `jobs/tasks/setup.md` first. It extracts
   the resume and derives the role families.
-- **Role families still unwritten** → derive **3–4** from the resume per `setup.md` Step 6.
+- **Family list:** `jobs/input/config/setup-families.md` if it exists (user-confirmed at
+  setup — use it as is), else the families in `search-profile.md`.
+- **Role families still unwritten** (neither file has any) → derive **3–4** from the resume
+  per `setup.md` Step 6.
   In unattended mode, write your best inference and **mark it provisional** in
   `search-profile.md` rather than blocking on confirmation:
 
@@ -152,26 +155,37 @@ through to Tier 4 — say so in the report rather than presenting them as equiva
 Run `jobs/tasks/search.md` when the list is short of the configured **Result limit**, when
 `--fresh` was passed, **or when the run carries a focus that no existing row matches** — a
 new role family always needs a search, however full the list already is. Skip it only when
-the list is full, the focus is one already covered, and nothing is stale. Skip it when the list is already full and nothing is stale — a run
-that only needs to clear a JD backlog should not spend six minutes searching.
+the list is full, the focus is one already covered, and nothing is stale — a run that only
+needs to clear a JD backlog should not spend six minutes searching.
+
+**`--skip-search` skips this pass unconditionally.** `jobs/bin/daily-run.sh` passes it: the
+script has already run `/job search` once per role family on a cheaper model, so this run
+starts at Pass 2 and works only on what is already in `jobs/output/jobs.md`. Say
+`Pass 1 skipped (--skip-search)` in the report.
 
 ## Pass 2 — Triage without stopping
 
 `jobs/tasks/triage.md` is normally the checkpoint where the user picks. Unattended, apply the
-fit bands from `search-profile.md` instead:
+fit bands from `search-profile.md` instead.
+
+**Read `Auto-tailor threshold` from `search-profile.md`** (under *Fit scoring*). Call it `T`.
+If the line is missing, use `75`. It is the one number that decides how many resumes an
+unattended run writes, so it lives in config, not here.
 
 | Fit | Unattended action |
 |---|---|
-| 80+ | auto-shortlist → carry through to `tailored` |
-| 60–79 | auto-shortlist → carry through to `tailored` |
-| 40–59 | leave at `found`; list it for the user to promote |
+| ≥ `T` | auto-shortlist → carry through to `tailored` |
+| 40 – (`T`−1) | leave at `found`; list it for the user to promote |
 | <40 | leave at `found`; do not spend a JD fetch on it |
+
+Never lower a job that is already past `found`: a row shortlisted or tailored by an earlier
+run under a lower threshold keeps its status.
 
 Anything failing a **hard filter** is `skipped` with the reason logged, exactly as in
 attended triage. Scam hard-drops never appear at all.
 
 Auto-shortlisting is a scoring decision, not a judgment about whether the user wants the
-job. Say so in the report and make the 40–59 list easy to scan, because that band is where
+job. Say so in the report and make the below-threshold list easy to scan, because that band is where
 the user's own taste actually matters.
 
 ## Pass 3 — JDs, failures included
@@ -229,7 +243,7 @@ Then report, short:
 Pipeline run <date>   (snapshot: jobs-2026-09-07T09-42-25.md)
 
   Searched      3 families (inferred) · 12 found · 4 new
-  Shortlisted   7 auto (fit 60+) · 5 left at found (40–59, your call)
+  Shortlisted   7 auto (fit 75+) · 5 left at found (40–74, your call)
   JDs           5 captured · 2 need you
   Tailored      5 resumes written · 0 failed
 
@@ -237,7 +251,7 @@ Pipeline run <date>   (snapshot: jobs-2026-09-07T09-42-25.md)
     2 JDs to paste:
       acme--data-engineer   https://...
       globex--ai-engineer   https://...
-    5 jobs in the 40–59 band — /job triage to promote any
+    5 jobs in the 40–74 band — /job triage to promote any
     Answer bank incomplete — /job setup before your first apply
 
   Ready to apply: 5     /job apply <job-id>     (one at a time, you submit)
