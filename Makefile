@@ -10,7 +10,7 @@ BIN  ?= bin/jobs-dashboard
 WEBLOG ?= jobs/output/logs/dashboard.log
 
 .DEFAULT_GOAL := help
-.PHONY: help web web-fg pdf refill daily morning init submitted reset build install run-bin fmt vet check clean stats ix-stats history snapshot stop status
+.PHONY: help web web-fg pdf refill daily morning init submitted doctor doctor-setup doctor-index reset build install run-bin fmt vet check clean stats ix-stats history snapshot stop status
 
 help: ## Show this help
 	@echo "HireFlow — make targets"
@@ -56,8 +56,19 @@ daily: ## The whole loop: search → JDs → tailored resumes → filled forms o
 morning: ## Open every mapped application, filled, in a visible browser (JOB=<job-id> for one)
 	@bash jobs/bin/morning-run.sh $(JOB)
 
-init: ## Seed jobs/output/tracker.md from the template (safe to re-run; never overwrites)
+init: ## Seed tracker.md and the job inbox from their templates (safe to re-run; never overwrites)
 	@bash jobs/bin/ensure-tracker.sh
+	@test -f jobs/input/inbox.md || { cp jobs/input/templates/inbox.md jobs/input/inbox.md && echo "· seeded jobs/input/inbox.md from the template"; }
+
+doctor: ## Health check: setup consistency + index/files agreement (read-only)
+	@python3 jobs/bin/check-setup.py; a=$$?; echo; python3 jobs/bin/check-index.py; b=$$?; \
+	[ $$a -eq 0 ] && [ $$b -eq 0 ]
+
+doctor-setup: ## Just the setup check: profile, config, tools, nothing personal committed
+	@python3 jobs/bin/check-setup.py
+
+doctor-index: ## Just the index check: jobs.md vs tracker.md vs the files on disk
+	@python3 jobs/bin/check-index.py
 
 submitted: init ## Record that YOU submitted an application (make submitted JOB=<job-id>)
 	@test -n "$(JOB)" || { echo "usage: make submitted JOB=<job-id>"; exit 1; }

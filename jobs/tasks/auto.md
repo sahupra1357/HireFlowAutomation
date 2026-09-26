@@ -1,7 +1,8 @@
 # Task: `auto`
 
 Run via `/job` with no arguments, or `/job auto`. The unattended pipeline: read the resume,
-work out what to search for, search, collect JDs, tailor — carrying every job as far as it
+work out what to search for, search, pick up the user's inbox, collect JDs, evaluate,
+tailor — carrying every job as far as it
 can go in one pass and **never stopping the batch because one job is stuck**.
 
 **Tool budget for this task:** Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, WebSearch, WebFetch, Agent
@@ -31,9 +32,37 @@ idempotent.
 A JD already on disk is not re-fetched. Re-running `/job` on a settled workspace should do
 almost nothing and say so.
 
+## Pre-pass — Health check, before anything is written
+
+The same two checks as `make doctor`, run first — before the snapshot, before any search,
+before a token is spent on the web:
+
+```bash
+python3 jobs/bin/check-index.py                 # exit 1 on an ERROR
+python3 jobs/bin/check-setup.py --preflight     # never fails; reports only
+```
+
+**An index ERROR stops the run.** Every pass below merges into `jobs/output/jobs.md`;
+searching into a table with a crooked row, a duplicate job ID, or a ✓ with no file behind it
+spreads the damage and costs a search doing it. Print the errors, point at the fix (re-run
+the task that owns the column, or roll back: `make history`, then copy the last good
+snapshot over `jobs/output/jobs.md`), and stop. Do **not** repair `jobs.md` yourself
+here — that is an edit the user should see first. Index WARNs don't stop anything; carry
+them into the report.
+
+**Setup findings never stop the run.** No resume, an empty master, no confirmed families —
+those are the degraded modes this task already handles below, which is why `--preflight`
+prints them as `DEGRADED` and exits 0. Hold every `ERROR` / `DEGRADED` / `WARN` line and
+list them once under *Needs you* in the Pass 5 report — a committed-personal-data `ERROR`
+first, because it is the only one that gets worse the longer it sits. Don't repeat them
+mid-run.
+
+Both scripts take under a second, so run them even when `jobs/bin/daily-run.sh` already
+did (it passes `--skip-search`); the state may have changed since.
+
 ## Pass 0 — Snapshot, then bootstrap
 
-**Snapshot first, before anything else.** Passes 1–4 all merge into `jobs/output/jobs.md`;
+**Snapshot first, before anything is written.** Passes 1–4 all merge into `jobs/output/jobs.md`;
 back it up before the first of them touches it:
 
 ```bash
@@ -163,6 +192,16 @@ script has already run `/job search` once per role family on a cheaper model, so
 starts at Pass 2 and works only on what is already in `jobs/output/jobs.md`. Say
 `Pass 1 skipped (--skip-search)` in the report.
 
+### Then the inbox — always, even with `--skip-search`
+
+Jobs the user found themselves are not a search, so no flag skips them. If
+`jobs/input/inbox.md` has links under `## Add` that are not in the index yet, run
+`jobs/tasks/add.md` with `--inbox --no-jd`: it verifies each one and writes it as
+`shortlisted`, and Pass 3 captures its JD with everything else. Pass 2 never demotes them —
+the user picked them, which outranks any fit band. **Unattended, `add` asks nothing:** a
+hard-filter failure is held back (not added, not excluded) and listed under *Needs you*,
+and an unreadable link is listed with its URL.
+
 ## Pass 2 — Triage without stopping
 
 `jobs/tasks/triage.md` is normally the checkpoint where the user picks. Unattended, apply the
@@ -215,9 +254,25 @@ the block is cleared. Flip **JD** to `✓ <date>`, set Status to `jd-captured`, 
 flow into Pass 4 this run. **This is the behaviour that makes the second run finish what the
 first one couldn't** — verify it explicitly rather than assuming it happened.
 
+## Pass 3b — Evaluate
+
+Run `jobs/tasks/evaluate.md` for every job with `JD: ✓`, `Resume: —` and no
+`jobs/output/applications/<job-id>/evaluation.md` yet — the same set Pass 4 is about to
+tailor. **Serially, in this session** — it is not one of the fan-out tasks, and its only
+web use is two public pay-data queries per job. Skipped entirely with `--no-evaluate`, and
+for every job when there is no master resume (evaluate has the same preflight as tailor).
+
+This is the one place the unattended run takes the evaluation's advice: a job whose verdict
+is **`skip`** is **not tailored** this run. Its Status stays where it is, and it is listed
+under *Needs you* with the deciding reason, so the user can overrule it with
+`/job tailor <job-id>`. `apply-with-caveats` is tailored as normal, with the caveat in the
+report. A job that already has `evaluation.md` is not re-evaluated — the loop never re-does
+finished work.
+
 ## Pass 4 — Tailor
 
-Run `jobs/tasks/tailor.md` for every job with `JD: ✓` and `Resume: —`. Fan out one subagent
+Run `jobs/tasks/tailor.md` for every job with `JD: ✓` and `Resume: —`, except those whose
+evaluation says `skip` (Pass 3b). Fan out one subagent
 per job, **max 4 in flight**, each confined to its own `jobs/output/applications/<job-id>/`.
 The parent is the only writer of `jobs/output/jobs.md`.
 
@@ -243,15 +298,20 @@ Then report, short:
 Pipeline run <date>   (snapshot: jobs-2026-09-07T09-42-25.md)
 
   Searched      3 families (inferred) · 12 found · 4 new
+  Inbox         2 added from jobs/input/inbox.md · 1 unreadable
   Shortlisted   7 auto (fit 75+) · 5 left at found (40–74, your call)
   JDs           5 captured · 2 need you
+  Evaluated     6 — 4 apply · 1 with caveats · 1 skip (not tailored)
   Tailored      5 resumes written · 0 failed
 
   Needs you
+    Setup: 1 work-authorization answer still TODO (make doctor for the full list)
     2 JDs to paste:
       acme--data-engineer   https://...
       globex--ai-engineer   https://...
     5 jobs in the 40–74 band — /job triage to promote any
+    1 evaluated skip: initech--staff-analyst — requires CPA licence
+      (applications/initech--staff-analyst/evaluation.md · /job tailor it to overrule)
     Answer bank incomplete — /job setup before your first apply
 
   Ready to apply: 5     /job apply <job-id>     (one at a time, you submit)

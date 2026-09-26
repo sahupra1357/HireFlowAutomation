@@ -18,8 +18,9 @@
 #
 #   1. search            as above. Mechanical work, so it runs on $SEARCH_MODEL
 #                        (default sonnet). (--no-search skips this stage)
-#   2. /job auto --skip-search   triage by the Auto-tailor threshold, capture JDs, tailor
-#                        resumes. Judgment-heavy (fit scoring, no-fabrication tailoring),
+#   2. /job auto --skip-search   pick up jobs/input/inbox.md, triage by the Auto-tailor
+#                        threshold, capture JDs, evaluate, tailor resumes (not the ones
+#                        evaluated `skip`). Judgment-heavy (fit scoring, no-fabrication tailoring),
 #                        so it runs on $REASON_MODEL (default opus). Stops at `tailored`.
 #                        (--no-tailor skips this stage)
 #   3. /job apply --batch    maps any newly tailored posting's form and fills it in a
@@ -28,6 +29,13 @@
 #                        (--no-apply skips this stage)
 #   4. morning-run.sh    re-opens/refills every mapped, unsubmitted application, so the
 #                        tabs are all there even for jobs stage 3 had nothing new to do.
+#
+# Before stage 1, a health check (jobs/bin/check-index.py + check-setup.py --preflight,
+# the same two `make doctor` runs). An index ERROR stops the run before anything is
+# searched — every stage merges into jobs.md, so searching into a broken index makes it
+# worse and costs tokens doing it. Setup findings never stop it (no resume, no confirmed
+# families are modes this script already runs degraded in); they are printed and logged.
+# (--no-doctor skips the check)
 #
 # Stages 1–3 are agent runs: they cost tokens. Stage 4 is free.
 #
@@ -41,14 +49,15 @@ set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 ROOT=$(pwd)
 
-DO_SEARCH=1; DO_TAILOR=1; DO_APPLY=1; UNATTENDED=0
+DO_SEARCH=1; DO_TAILOR=1; DO_APPLY=1; DO_DOCTOR=1; UNATTENDED=0
 for a in "$@"; do
   case "$a" in
     --no-search) DO_SEARCH=0 ;;
     --no-tailor) DO_TAILOR=0 ;;
     --no-apply)  DO_APPLY=0 ;;
+    --no-doctor) DO_DOCTOR=0 ;;
     --unattended) UNATTENDED=1 ;;
-    -h|--help) sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,46p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown flag: $a"; exit 1 ;;
   esac
 done
@@ -96,6 +105,21 @@ say ""
 say "════════ daily run · $(date '+%F %H:%M') ════════"
 say "  log: $LOG"
 say "  models: search=$SEARCH_MODEL · triage/JD/tailor=$REASON_MODEL · apply=$APPLY_MODEL"
+
+# ── health check, before anything costs a token ─────────────────────────────
+if [ "$DO_DOCTOR" = "1" ]; then
+  say ""
+  out=$(HIREFLOW_DAILY_RUN=1 python3 "$ROOT/jobs/bin/check-index.py" 2>&1); rc=$?
+  printf '%s\n' "$out" | sed 's/^/  /' | tee -a "$LOG"
+  if [ "$rc" != "0" ]; then
+    say ""
+    say "  ✋ jobs/output/jobs.md has errors (above). Nothing was searched."
+    say "     Fix them, or roll back: make history → cp jobs/output/history/<snapshot> jobs/output/jobs.md"
+    say "     Then re-run. (--no-doctor skips this check.)"
+    exit 1
+  fi
+  python3 "$ROOT/jobs/bin/check-setup.py" --preflight 2>&1 | sed 's/^/  /' | tee -a "$LOG"
+fi
 
 # ── has /job setup run? ──────────────────────────────────────────────────────
 # Setup is interactive (it asks which families to keep), so an unattended run can't do it.
@@ -163,7 +187,7 @@ fi
 
 # ── stage 2: triage → JD → tailor ────────────────────────────────────────────
 if [ "$DO_TAILOR" = "1" ]; then
-  agent "/job auto --skip-search" "stage 2 · triage, JDs, tailoring" "$REASON_MODEL"
+  agent "/job auto --skip-search" "stage 2 · inbox, triage, JDs, evaluation, tailoring" "$REASON_MODEL"
 else
   say ""; say "── stage 2 skipped"
 fi

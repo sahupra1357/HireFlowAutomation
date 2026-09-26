@@ -87,6 +87,21 @@ It builds a role family out of that phrase, searches, and captures JDs. It stops
 tailoring — that genuinely needs your resume — and tells you so. Drop the resume in later and
 the next `/job` tailors everything it already found.
 
+**Found a job yourself?** Paste the link, or the job description text:
+
+```
+/job https://job-boards.greenhouse.io/acme/jobs/123     # or several links at once
+/job add <pasted job description>                      # no link, just the text
+```
+
+It verifies the posting, adds it as `shortlisted` (you picked it, so it skips triage), and
+captures the JD. To collect links over the week instead, paste them into
+`jobs/input/inbox.md` (`make init` creates it) — every `/job` and `make daily` picks up the
+new ones.
+
+**Want a second opinion before applying?** `/job evaluate <job-id>` writes a one-page
+assessment — see [Is this job worth it?](#is-this-job-worth-it).
+
 ## Where jobs come from
 
 Search runs against the ATS boards' **own public APIs** — Greenhouse, Lever and Ashby —
@@ -130,6 +145,7 @@ run with `/job <role> --country "United Kingdom"`.
   │ PASS 1   SEARCH   job-sites.md × search-profile.md              │
   │                   gather ~3× the limit, rank, then verify       │
   │                   each is still live until the limit fills      │
+  │          INBOX    new links in jobs/input/inbox.md → shortlisted│
   ├─────────────────────────────────────────────────────────────────┤
   │ PASS 2   TRIAGE   fit ≥ threshold (75) → shortlist, carry on    │
   │                   fit 40–74 → left for you to promote           │
@@ -137,6 +153,9 @@ run with `/job <role> --country "United Kingdom"`.
   ├─────────────────────────────────────────────────────────────────┤
   │ PASS 3   JDs      captured → jds/<job-id>.md                    │──┐
   │                   failed   → mark "manual", MOVE ON             │  │
+  ├─────────────────────────────────────────────────────────────────┤  │
+  │ PASS 3b  EVALUATE requirement match, gaps, pay, verdict         │  │
+  │                   verdict "skip" → not tailored, listed for you │  │
   ├─────────────────────────────────────────────────────────────────┤  │
   │ PASS 4   TAILOR   every job with a JD but no tailored           │  │
   │                   resume yet · at most 4 in parallel            │  │
@@ -175,8 +194,10 @@ re-done, and re-running on a settled workspace does almost nothing. There is no 
 |---|---|
 | `/job setup` | read the resume, derive role families, fill the answer bank |
 | `/job search` | search the configured sites |
+| `/job <url>` · `/job add …` | add a job you found — a link, pasted JD text, or `--inbox` |
 | `/job triage` | you pick what's worth applying to |
 | `/job jd` | confirm postings are live, capture full JDs |
+| `/job evaluate <job-id>` | written assessment: requirement match, gaps, level, pay, interview stories, apply/skip |
 | `/job tailor --all` | one tailored resume per job |
 | `/job apply <job-id>` | fill one form, you watching, stop before submit |
 | `/job apply --batch` | fill every tailored job unattended, leave the tabs open |
@@ -191,6 +212,7 @@ And the parts you drive from the shell rather than from Claude Code:
 | `make morning` | re-open every mapped application, filled, in the browser | free |
 | `make pdf` | render the tailored resumes to PDF in your own resume's layout | free |
 | `make submitted JOB=<id>` | record that you submitted one | free |
+| `make doctor` | health check: setup, and the index agreeing with the files | free |
 | `make reset` | wipe the agent's output and start over | free |
 
 "free" means no model call at all — pure scripts, seconds to run.
@@ -200,19 +222,20 @@ English (`/job what's still live?`).
 
 ## Layout
 
-One skill, nine task files, and a workspace split into what **you** provide and what **the
+One skill, eleven task files, and a workspace split into what **you** provide and what **the
 agent** produces.
 
 ```
 .claude/skills/job/SKILL.md   the only skill — a router, no procedure
 
 jobs/
-  tasks/                      the nine procedures the router dispatches to
-                              auto · setup · search · triage · jd
-                              tailor · apply · status · interviews
+  tasks/                      the eleven procedures the router dispatches to
+                              auto · setup · search · add · triage · jd
+                              evaluate · tailor · apply · status · interviews
   input/
     profile/source-resumes/   ← drop your resume here (the only source of identity)
     profile/                  master-resume.md, links.md      (built by /job setup)
+    inbox.md                  ← links to jobs YOU found; /job picks up new ones
     config/                   job-sites.md      where to search — ATS board APIs first
                               search-profile.md generic role families, countries, filters,
                                                 limits, the auto-tailor threshold
@@ -226,7 +249,8 @@ jobs/
     jobs.md                   the living index (what the dashboard reads)
     tracker.md                the status board (gitignored; `make init` seeds it)
     jds/<job-id>.md           full job descriptions
-    applications/<job-id>/    resume.md · resume.pdf (· resume.docx) · cover letter · log.md
+    applications/<job-id>/    evaluation.md   /job evaluate's assessment + verdict
+                              resume.md · resume.pdf (· resume.docx) · cover letter · log.md
                               form-fill.json  the form's field map
                               refill.js       replay script for that form
                               screens/        what the filled form looked like
@@ -244,6 +268,8 @@ jobs/
     reset.sh                  make reset    — back to a fresh start
     docx-resume.py            maps your .docx (setup) and edits a copy per job (make pdf)
     verify-tailored.py        flags invented figures, years, certs in a tailored resume
+    check-setup.py            make doctor — profile/config ready, nothing personal committed
+    check-index.py            make doctor — jobs.md, tracker.md and files on disk agree
   dashboard/                  Go web dashboard (make web) + the resume PDF renderer
 
 interviews/                   interview-experience intel, separate namespace
@@ -284,9 +310,66 @@ and carry on. You get the list of what it couldn't answer at the end, once.
 - **It never tailors without a resume.** No "I'll work from the JD instead."
 - **Your data stays local.** `jobs/input/profile/` goes to employer application forms and
   nowhere else. `.gitignore` keeps `master-resume.md`, `links.md`, `source-resumes/`,
-  `application-answers.md`, `search-profile.md`, `setup-families.md`, `resume-format.md`,
+  `application-answers.md`, `search-profile.md`, `setup-families.md`, `resume-format.md`, `inbox.md`,
   `resume-docx-map.json`, and all of `jobs/output/` out of version control; only the blank
   templates in `jobs/input/templates/` are committed.
+
+## Is this job worth it?
+
+```
+/job evaluate <job-id>        # one job
+/job evaluate --all           # every job with a JD and no evaluation yet
+```
+
+A fit score is one number; this is the reasoning behind it, written to
+`jobs/output/applications/<job-id>/evaluation.md` and opened from the job's Status pill in
+the dashboard:
+
+- **A) Role summary** — what the job is, seniority, work mode, team, posted pay.
+- **B) Requirement match** — every requirement in the JD next to the line of your master
+  resume that evidences it, quoted, marked strong / partial / none. Each gap says whether
+  it's a hard blocker, what adjacent experience you really have, and what you can
+  truthfully say about it.
+- **C) Level & positioning** — the JD's level vs yours, what to lead with, and what *not* to
+  claim.
+- **D) Pay** — the posted range plus public data (Levels.fyi, Glassdoor…) with sources, vs
+  your floor. Only the role title, level and location go into the search — never your
+  resume. No data → it says so; it never estimates.
+- **E) Tailoring plan** — what `/job tailor` should emphasise; tailor reads it first.
+- **F) Interview prep** — 3–6 situation/task/action/result stories built only from your
+  master resume, plus the questions your gaps will draw.
+- **G) Verdict** — `apply`, `apply-with-caveats`, or `skip`, with the reason.
+
+It's advice: it never changes a job's status. `/job` runs it for every job it is about to
+tailor and **doesn't tailor the ones it rates `skip`** — they're listed for you with the
+reason, and `/job tailor <job-id>` overrules it. `/job auto --no-evaluate` turns the pass off.
+
+## Health check
+
+```bash
+make doctor                   # both checks; exits non-zero on any error
+```
+
+- **Setup** (`check-setup.py`) — a resume is dropped in; the master resume is populated and
+  not older than it; no `{{placeholders}}` left in the search profile; role families
+  confirmed; work-authorization answers filled; the `.docx` map or measured layout in place
+  for `make pdf`; `claude`, `go` and the browser present. And the one that protects a public
+  repo: **nothing personal is committed** — your name, email and phone are searched for in
+  every tracked file, and every per-user file must be untracked.
+- **Index** (`check-index.py`) — every row in `jobs.md` has the right shape, a valid job ID
+  and a real status; every ✓ in JD / Resume / Form has its file behind it; no status is
+  ahead of its artifacts; no orphan JDs or folders; `tracker.md` agrees with `jobs.md`; a
+  JD you dropped in that no run has picked up yet.
+
+Both only read. A finding is fixed by re-running the task that owns it, or by hand after
+`make snapshot`.
+
+**It also runs by itself before every search.** `/job` and `make daily` run both checks
+first. An **index error stops the run** before anything is searched or a token spent —
+every stage merges into `jobs.md`, so searching into a broken one only spreads the damage.
+**Setup findings never stop it**: no resume or no confirmed families are modes the pipeline
+already runs degraded in, so they're printed as `DEGRADED` and listed under *Needs you* at
+the end. `make daily --no-doctor` skips the check.
 
 ## The tailored resume as a PDF
 
@@ -369,7 +452,9 @@ Override any of it per run:
 SEARCH_MODEL=haiku REASON_MODEL=opus FALLBACK_LIMIT=25 make daily
 ```
 
-`--no-search`, `--no-tailor` and `--no-apply` skip stages 1, 2 and 3. A lock file stops a
+Before stage 1 it runs the `make doctor` checks and stops if `jobs.md` has errors (see
+[Health check](#health-check)); `--no-doctor` skips that. `--no-search`, `--no-tailor` and
+`--no-apply` skip stages 1, 2 and 3. A lock file stops a
 manual run and the scheduled one colliding on `jobs.md`, and each run logs to
 `jobs/output/logs/daily-<date>.log` (last 30 kept). Stage 4 restarts the browser by itself if
 the window was closed since yesterday.
@@ -596,6 +681,8 @@ own lists them.
 | `make stats` / `ix-stats` | print job / interview counts without starting a server |
 | `make snapshot` / `history` | back up `jobs.md` now · list the snapshots |
 | **housekeeping** | |
+| `make init` | seed `tracker.md` and `jobs/input/inbox.md` from their templates (never overwrites) |
+| `make doctor` | setup + index health check, read-only (`doctor-setup` / `doctor-index` for one) |
 | `make reset` | wipe the agent's output and start fresh (`ARGS=--dry-run` to preview) |
 | `make build` / `run-bin` | compile to `bin/`, optionally run it |
 | `make check` | fmt + vet + build |

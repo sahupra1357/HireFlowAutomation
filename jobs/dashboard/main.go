@@ -59,6 +59,9 @@ type page struct {
 	// The Status and Resume cells become links to /doc for those rows — filled by linkDocs,
 	// which stats the file rather than trusting the ✓ in the column.
 	ResumeJob []string
+	// DocJob[r] is row r's job ID when it has anything to open — a tailored resume or a
+	// /job evaluate report — so the Status pill links before tailoring has run.
+	DocJob []string
 
 	// ColMeta is SumCols as JSON for the filter popover, which needs each column's kind
 	// and value vocabulary client-side. Emitted into a <script type="application/json">

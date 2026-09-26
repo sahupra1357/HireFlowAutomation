@@ -87,8 +87,16 @@ cat jobs/output/jds/<job-id>.md
 cat jobs/output/jds/<job-id>.md                  # the full JD — the real input
 cat jobs/input/profile/master-resume.md
 cat jobs/output/applications/<job-id>/log.md 2>/dev/null
+cat jobs/output/applications/<job-id>/evaluation.md 2>/dev/null   # from /job evaluate, if run
 grep -n '<job-id>' jobs/output/jobs.md                    # Summary row: fit, comp, flags
 ```
+
+**If `evaluation.md` exists, start from it.** Its section B is the requirement map Step 3
+would build, section E is the tailoring plan, and *Don't claim* in section C lists what this
+resume must not imply. Check it against the JD rather than trusting it blindly — but a
+tailored resume that contradicts its own evaluation needs a reason in the log. If the
+verdict is `skip`, say so to the user before spending the effort (attended); a batch run
+only reaches a `skip` job when the user named it, so proceed.
 
 ## Step 2 — Analyze the JD
 
