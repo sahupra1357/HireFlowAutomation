@@ -718,6 +718,9 @@ func main() {
 		ixAbs, _ = filepath.Abs(ixPath)
 	}
 
+	// The resume layout recorded by /job setup from the user's own source resume.
+	resumeFmt = loadResumeFormat(filepath.Join(filepath.Dir(abs), "..", "input", "config", "resume-format.md"))
+
 	if *pdf != "" {
 		fmt.Printf("rendering resumes in the source-resume format → %s/applications/<job-id>/resume.pdf\n", filepath.Dir(abs))
 		if renderAllPDFs(filepath.Dir(abs), *pdf) > 0 {

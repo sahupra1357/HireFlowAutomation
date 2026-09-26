@@ -96,6 +96,13 @@ looks like to you, and the agent scores against it instead of guessing:
 
 Bands: **80+ apply now** · **60–79 worth a look** · **40–59 stretch/backup** · **<40 skip**
 
+### Auto-tailor threshold: 75
+
+Unattended runs (`/job`, `make daily`) shortlist and tailor a resume only for jobs scoring
+**at or above** this number. Everything from 40 up to it stays at `found` for you to promote
+with `/job triage`. Each tailored resume is a full agent pass, so this is the main cost dial
+for a `Result limit: all` run. Attended `/job triage` is unaffected.
+
 ## Volume
 
 ### Result limit: 10

@@ -31,6 +31,14 @@ through later.
 
 ## Step 0 — Load context
 
+**Pick the family list first.** If `jobs/input/config/setup-families.md` exists, its
+families — and only those — are what this run searches; they are the ones the user
+confirmed in `/job setup`. Otherwise fall back to the families in `search-profile.md`.
+Say which in the run header: `Families: setup-families.md (3 confirmed)` or
+`Families: search-profile.md (generic — run /job setup to narrow)`. Every other setting in
+`search-profile.md` applies either way. A focus argument naming a family is looked up in the
+active list; a focus that names none is expanded into an ad-hoc family as usual.
+
 ```bash
 cat jobs/input/config/search-profile.md
 grep -A6 'Enabled: yes' jobs/input/config/job-sites.md | head -100

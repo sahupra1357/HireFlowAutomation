@@ -8,7 +8,8 @@ def check(p):
     f=pathlib.Path(p)/"resume.md"
     if not f.exists(): return [f"MISSING {f}"]
     r=f.read_text(); bad=[]
-    em=[e for e in re.findall(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}',r) if 'TODO' not in e]
+    # An email is legitimate only if the master's own Contact section carries it.
+    em=[e for e in re.findall(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}',r) if 'TODO' not in e and e not in M]
     if em: bad.append(f"INVENTED EMAIL: {em}")
     fig=re.findall(r'(?<![\w.])[0-9]{1,3}%|\$[0-9][0-9,.]*[KMB]?\b',r)
     if fig: bad.append(f"INVENTED FIGURES: {fig[:6]}")
@@ -26,6 +27,7 @@ def check(p):
         low=blk.lower()
         if any(k in low for k in NEG): continue
         for tok in ("Scala","Golang","Azure","GCP","OpenShift","Node.js","Kotlin","Ruby","Rails"):
+            if re.search(r'\b'+re.escape(tok)+r'\b', M): continue   # the master has it, so it may be claimed
             if re.search(r'\b'+re.escape(tok)+r'\b', blk):
                 line=[l for l in blk.split("\n") if tok in l][0]
                 bad.append(f"CLAIMED SKILL NOT IN MASTER: {tok} -> {line.strip()[:70]}")

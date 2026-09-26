@@ -4,7 +4,9 @@ jobs/input/profile/master-resume.md
 jobs/input/profile/links.md
 jobs/input/config/application-answers.md
 jobs/input/config/search-profile.md
-jobs/input/config/job-sites.md.bak-2026-09-07
+jobs/input/config/setup-families.md
+jobs/input/config/resume-format.md
+jobs/input/config/resume-docx-map.json
 
 # Agent output — per-user, never commit
 jobs/output/jobs.md
@@ -16,7 +18,6 @@ jobs/output/logs/
 jobs/output/tracker.md
 .resets/
 jobs/output/.daily-run.lock
-jobs/tasks/search.md.bak-2026-09-07
 interviews/output/interviews.md
 interviews/output/reports/
 
@@ -31,3 +32,15 @@ interviews/output/reports/
 
 .DS_Store
 .gstack/
+
+# Local Python env (python-docx for .docx resumes)
+.venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Backups, secrets, stray logs
+*.bak*
+.env*
+*.log

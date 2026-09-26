@@ -3,9 +3,9 @@ package main
 // Resume PDF rendering.
 //
 // /job tailor writes resume.md — the words. This turns those words back into the layout of
-// the resume the user actually sends out: the two-column format of the source resume in
-// jobs/input/profile/source-resumes/, measured off that file — US Letter, 1in margins, a
-// 2.4in shaded skills sidebar on the left, the main column at 2.47in, Aptos 12/14.6.
+// the resume the user actually sends out, as recorded in jobs/input/config/resume-format.md
+// (see resume_format.go). This file holds the parser and the `Layout: sidebar` design — a
+// two-column page with a shaded skills sidebar; resume_format.go holds the single-column one.
 // Nothing here invents content; it only decides where on the page each line already in
 // resume.md goes.
 //
@@ -44,7 +44,8 @@ type jobEntry struct {
 
 type section struct {
 	Heading string
-	Body    []string // rendered HTML
+	Body    []string // rendered HTML (sidebar layout)
+	Raw     []string // the section's Markdown lines, for layouts that lay them out themselves
 }
 
 type resumeDoc struct {
@@ -110,7 +111,7 @@ func parseResume(md string) resumeDoc {
 		case isSkills(s.head):
 			d.Skills = append(d.Skills, parseSkills(s.body)...)
 		default:
-			d.Sections = append(d.Sections, section{Heading: s.head, Body: renderBody(s.body)})
+			d.Sections = append(d.Sections, section{Heading: s.head, Body: renderBody(s.body), Raw: s.body})
 		}
 	}
 	return d
@@ -274,6 +275,9 @@ func jobHead(h string) string {
 // the PDF in jobs/input/profile/source-resumes/: sidebar 172.5pt wide starting at the 1in
 // margin, main column at 249.9pt, body 12pt/14.64pt, headings bold at the same 12pt.
 func resumeHTML(d resumeDoc) string {
+	if resumeFmt.Layout != "sidebar" {
+		return resumeHTMLSingle(d, resumeFmt)
+	}
 	var b strings.Builder
 	title := d.Name
 	if title == "" {

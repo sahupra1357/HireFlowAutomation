@@ -59,6 +59,7 @@ if [ "$WIPE_PROFILE" = "1" ]; then
     "jobs/input/profile/links.md"
     "jobs/input/config/application-answers.md"
     "jobs/input/config/search-profile.md"
+    "jobs/input/config/setup-families.md"
   )
 fi
 [ "$WIPE_BUILD" = "1" ] && TARGETS+=("bin")

@@ -73,6 +73,32 @@ Fill every section of the existing template. Rules:
 Then show the user a short diff-style summary: roles found, years covered, skill categories,
 count of remaining TODOs.
 
+**Preserve the resume's format.** Tailored resumes must come out in the user's own format with
+only the words changed.
+
+- **A `.docx` in `source-resumes/` (preferred — exact).** Map its content slots:
+
+  ```bash
+  [ -x .venv/bin/python ] || { python3 -m venv .venv && .venv/bin/pip install --quiet python-docx; }
+  .venv/bin/python jobs/bin/docx-resume.py map
+  ```
+
+  It writes `jobs/input/config/resume-docx-map.json` — which paragraphs are the summary, the
+  skill lines, each job's bullets, the education lines — found by structure, not wording.
+  Show the user the one-line summary it prints and check it: the job count and bullets per
+  job should match their resume. From then on `make pdf` copies the user's own `.docx` for
+  every job and swaps in only the tailored text, so the format cannot drift; Word exports the
+  PDF. Nothing else is needed.
+- **Only a PDF (fallback — close, not exact).** Record the layout in
+  `jobs/input/config/resume-format.md`, from `jobs/input/templates/resume-format.md`. `make pdf` renders every tailored resume in this
+layout, so the user gets their own format back with only the words changed. Measure it off
+the source file, don't guess: page size (`/MediaBox` — 595×842 is A4, 612×792 is Letter),
+font (`/BaseFont` names in the PDF), single-column vs sidebar, body size, margins, the
+section headings exactly as printed (e.g. `Professional Summary:`), the date style
+(`Apr 2016`), contact order and separator, and whether skills sit in a bordered table.
+Replace the file whole on a new resume. Render one tailored resume afterwards and compare it
+with the source page by page.
+
 ## Step 4 — Links and LinkedIn
 
 Ask for LinkedIn / GitHub / portfolio URLs if `jobs/input/profile/links.md` still has TODOs.
@@ -135,6 +161,14 @@ assume the workspace is for engineering, or for any other domain — read what S
    does; someone pivoting will want families their history doesn't evidence yet. Take what
    they say over what you inferred.
 
+   **Write only the confirmed families to `jobs/input/config/setup-families.md`**, from
+   `jobs/input/templates/setup-families.md`, with today's date on the *Confirmed* line.
+   Replace the file whole — it is this setup's answer, not a merge with the last one. A
+   family the user dropped must not survive in it. Once this file exists it is the family
+   list every task and `make daily` search; the family list in `search-profile.md` is
+   left as it is and becomes the generic fallback, used only when this file is absent.
+   Never write a family into `setup-families.md` the user did not confirm.
+
 3. **Fill the keyword lists** from the same source: *boost* keywords are the skills and tools
    the resume actually evidences; *exclude* keywords are the disqualifiers for this user
    specifically (a credential they lack, a clearance they don't hold, a years-of-experience
@@ -155,6 +189,7 @@ Profile ready.
   Resume:     N roles, YYYY–YYYY, N skill categories
   Links:      LinkedIn ✓  GitHub ✓  Portfolio —
   Answers:    N of M filled, N marked ask-each-time
+  Families:   N confirmed → jobs/input/config/setup-families.md  (what make daily searches)
   Remaining:  <list the TODOs that still matter>
 
 Next: /job search

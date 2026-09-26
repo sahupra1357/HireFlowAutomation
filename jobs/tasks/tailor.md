@@ -117,7 +117,10 @@ user before spending the effort — this may be a job to skip.
 Follow `jobs/input/templates/tailored-resume.md`.
 
 - **Headline** — the target title, if the user can honestly claim it
-- **Summary** — 3 sentences, leading with the JD's #1 requirement
+- **Summary** — **the first sentence is the master resume's own first sentence, verbatim**
+  (the user's choice; `preferences.keep_summary_first_sentence` in
+  `jobs/input/config/resume-docx-map.json`). Tailor only what follows it: 2–3 sentences
+  leading with the JD's #1 requirement
 - **Skills** — categories reordered by JD relevance; irrelevant ones dropped, not padded
 - **Experience** — most recent role gets 3–5 bullets, older ones 2–3. Each bullet: action
   verb + what was built + technology + outcome. Numbers only from the metrics bank.
@@ -140,10 +143,16 @@ make pdf JOB=<job-id>            # one job   → jobs/output/applications/<job-i
 make pdf                         # every job that has a resume.md
 ```
 
-This renders **the source resume's own layout**, not a generic Markdown-to-PDF: the two-column
-format measured off the file in `jobs/input/profile/source-resumes/` — US Letter, 1in margins,
-a shaded skills sidebar on the left, the experience column on the right, Aptos 12pt. Only the
-words change from job to job. It strips the HTML-comment receipt itself, so `resume.md` keeps
+With a mapped `.docx` (`jobs/input/config/resume-docx-map.json`), `make pdf` writes
+`resume.docx` **and** `resume.pdf` per job by editing a copy of the user's own `.docx` — same
+file, same format, only the text in the summary, skill lines and bullets changes. Keep
+`resume.md` to the template shape so the slots line up: one summary, `**Label:** items`
+skill lines, `### Role — Company · …` entries with `- ` bullets.
+
+Without one, it renders **the source resume's own layout**, not a generic Markdown-to-PDF: page size,
+font, margins, headings, date style and column layout come from
+`jobs/input/config/resume-format.md`, which `/job setup` measures off the file in
+`jobs/input/profile/source-resumes/`. Only the words change from job to job. It strips the HTML-comment receipt itself, so `resume.md` keeps
 the receipt as the editable source.
 
 The mapping is fixed by the file's structure, so keep writing `resume.md` to the template

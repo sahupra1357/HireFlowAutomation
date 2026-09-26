@@ -7,9 +7,10 @@ PORT ?= 8080
 JOBS ?= jobs/output/jobs.md
 IX   ?= interviews/output/interviews.md
 BIN  ?= bin/jobs-dashboard
+WEBLOG ?= jobs/output/logs/dashboard.log
 
 .DEFAULT_GOAL := help
-.PHONY: help web pdf refill daily morning init submitted reset build install run-bin fmt vet check clean stats ix-stats history snapshot stop status
+.PHONY: help web web-fg pdf refill daily morning init submitted reset build install run-bin fmt vet check clean stats ix-stats history snapshot stop status
 
 help: ## Show this help
 	@echo "HireFlow — make targets"
@@ -23,13 +24,28 @@ help: ## Show this help
 	@echo "  override  : make web PORT=9000 JOBS=/other/jobs.md IX=/other/interviews.md
 	@echo "  layout    : jobs/{input,output,dashboard}  interviews/{input,output,bin}""
 
-web: build ## Run the dashboard, reloading jobs.md on every request (Ctrl+C to stop)
+web: build ## Start the dashboard in the background (restarts it if running) — stop with: make stop
 	@test -f "$(JOBS)" || { echo "error: $(JOBS) not found — run /job first"; exit 1; }
-	@echo "  dashboard → http://localhost:$(PORT)     Ctrl+C to stop  ·  or: make stop"
+	@$(MAKE) --no-print-directory stop >/dev/null
+	@mkdir -p $(dir $(WEBLOG))
+	@nohup "./$(BIN)" -addr ":$(PORT)" -f "$(JOBS)" -i "$(IX)" >"$(WEBLOG)" 2>&1 &
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	  curl -s -o /dev/null "http://localhost:$(PORT)/" && break; sleep 0.5; done; \
+	if curl -s -o /dev/null "http://localhost:$(PORT)/"; then \
+	  echo "  dashboard → http://localhost:$(PORT)   (running in the background · log: $(WEBLOG) · stop: make stop)"; \
+	else echo "  dashboard did not start — see $(WEBLOG)"; tail -5 "$(WEBLOG)"; exit 1; fi
+
+web-fg: build ## Run the dashboard in this terminal instead (Ctrl+C to stop)
+	@test -f "$(JOBS)" || { echo "error: $(JOBS) not found — run /job first"; exit 1; }
+	@echo "  dashboard → http://localhost:$(PORT)     Ctrl+C to stop"
 	@exec "./$(BIN)" -addr ":$(PORT)" -f "$(JOBS)" -i "$(IX)"
 
-pdf: build ## Render tailored resumes to PDF in the source-resume format (JOB=<job-id>, default all)
-	@"./$(BIN)" -f "$(JOBS)" -pdf "$(or $(JOB),all)"
+pdf: build ## Render tailored resumes in the source-resume format (JOB=<job-id>, default all)
+	@if [ -f jobs/input/config/resume-docx-map.json ] && ls jobs/input/profile/source-resumes/*.docx >/dev/null 2>&1; then \
+	  [ -x .venv/bin/python ] || { python3 -m venv .venv && .venv/bin/pip install --quiet python-docx; }; \
+	  echo "editing your own .docx per job → resume.docx + resume.pdf (exported by Word)"; \
+	  .venv/bin/python jobs/bin/docx-resume.py render "$(or $(JOB),all)"; \
+	else "./$(BIN)" -f "$(JOBS)" -pdf "$(or $(JOB),all)"; fi
 
 refill: ## Regenerate the replay scripts from form-fill.json (JOB=<job-id>, default all)
 	@python3 jobs/bin/make-refill.py $(or $(JOB),--all)
