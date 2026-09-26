@@ -37,13 +37,18 @@ var (
 func linkDocs(p *page, liveDir string) {
 	ids := p.Summary.col("Job ID")
 	p.ResumeJob = make([]string, len(p.Summary.Rows))
+	p.DocJob = make([]string, len(p.Summary.Rows))
 	for i := range p.Summary.Rows {
 		id := strings.TrimSpace(cell(ids, i))
 		if !jobIDRe.MatchString(id) {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(liveDir, "applications", id, "resume.md")); err == nil {
+		app := filepath.Join(liveDir, "applications", id)
+		if _, err := os.Stat(filepath.Join(app, "resume.md")); err == nil {
 			p.ResumeJob[i] = id
+			p.DocJob[i] = id
+		} else if _, err := os.Stat(filepath.Join(app, "evaluation.md")); err == nil {
+			p.DocJob[i] = id
 		}
 	}
 }
@@ -104,7 +109,11 @@ func resolveDoc(liveDir, id, f string) (string, bool) {
 		return p, err == nil
 	}
 	if f == "" {
+		// The resume is what almost every visit wants; before tailoring, the evaluation.
 		f = "resume.md"
+		if _, err := os.Stat(filepath.Join(liveDir, "applications", id, f)); err != nil {
+			f = "evaluation.md"
+		}
 	}
 	if !docRe.MatchString(strings.ToLower(f)) || f != filepath.Base(f) {
 		return "", false

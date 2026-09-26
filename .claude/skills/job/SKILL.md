@@ -1,12 +1,12 @@
 ---
 name: job
-description: The complete job-search agent — one skill, routed by subcommand. Sets up the profile from a resume, searches the configured sites for jobs, triages and shortlists them, collects full job descriptions, tailors the resume and cover letter to a specific role, fills out application forms in the browser (stopping before submit), tracks application status and follow-ups, and finds real interview experiences. Use whenever the user mentions job search, finding roles, resumes or CVs, tailoring, job descriptions, applying to a job, application status, follow-ups, or interview prep — and for "/job ..." in any form.
+description: The complete job-search agent — one skill, routed by subcommand. Sets up the profile from a resume, searches the configured sites for jobs, adds jobs the user found themselves (a pasted URL or JD, or an inbox file), triages and shortlists them, collects full job descriptions, writes an apply/skip evaluation of a role, tailors the resume and cover letter to a specific role, fills out application forms in the browser (stopping before submit), tracks application status and follow-ups, and finds real interview experiences. Use whenever the user mentions job search, finding roles, pastes a job link, asks whether a job is worth applying to, resumes or CVs, tailoring, job descriptions, applying to a job, application status, follow-ups, or interview prep — and for "/job ..." in any form.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, WebSearch, WebFetch, Agent
 ---
 
 # /job
 
-One skill, eight tasks. This file is the **router** and holds no procedure of its own: work
+One skill, eleven tasks. This file is the **router** and holds no procedure of its own: work
 out which task the request is, read that task's file from `jobs/tasks/`, and follow it.
 
 **The task files live in the workspace, not in this skill** — `jobs/tasks/*.md`, alongside
@@ -17,6 +17,7 @@ next run. Always read the file fresh; never work from memory of what a task used
 ```
 /job                      # the auto pipeline: resume → families → search → JDs → tailored
 /job <task> [args]        # run one task
+/job <url>                # add a job you found yourself (→ add)
 /job status               # read-only board, starts nothing
 ```
 
@@ -31,12 +32,21 @@ job. It stops at `tailored`; it cannot fill a form. For a read-only look, `/job 
 | `setup` | `profile`, `resume-setup` | `jobs/tasks/setup.md` | — |
 | `search` | `find` | `jobs/tasks/search.md` | focus, `--limit N`, `--country "<list>"` |
 | `triage` | `shortlist`, `pick` | `jobs/tasks/triage.md` | fit floor |
+| `add` | `import`, `inbox`, *(a bare URL or pasted JD)* | `jobs/tasks/add.md` | url(s), `--inbox`, pasted text, `--no-jd` |
 | `jd` | `jds`, `collect`, `describe` | `jobs/tasks/jd.md` | job-id or `--all` |
+| `evaluate` | `eval`, `assess`, `review-job` | `jobs/tasks/evaluate.md` | job-id or `--all`, `--refresh`, `--no-comp` |
 | `tailor` | `resume`, `cv` | `jobs/tasks/tailor.md` | job-id or `--all` |
 | `apply` | `fill` | `jobs/tasks/apply.md` | job-id **(required)**, or `--batch [job-id ...]` |
 | `status` | `track`, `tracker`, `board` | `jobs/tasks/status.md` | — |
 | `interviews` | `ix`, `prep` | `jobs/tasks/interviews.md` | company |
-| `auto` | *(no argument)*, `run`, `all`, `pipeline` | `jobs/tasks/auto.md` | `--fresh`, `--limit N`, `--country "<list>"`, `--skip-search` |
+| `auto` | *(no argument)*, `run`, `all`, `pipeline` | `jobs/tasks/auto.md` | `--fresh`, `--limit N`, `--country "<list>"`, `--skip-search`, `--no-evaluate` |
+
+Two more come with `make`, not `/job`: `make doctor` runs `jobs/bin/check-setup.py` (profile,
+config, tools, nothing personal committed) and `jobs/bin/check-index.py` (`jobs.md` vs
+`tracker.md` vs the files on disk). Both only read. `auto` and `make daily` run both before
+searching: an index error stops the run, setup findings are only reported (`--preflight`).
+When any other task finds the workspace in a state it doesn't expect, running `make doctor`
+first is cheaper than guessing.
 
 Paths are relative to the workspace root. Resolve them from the repo root, not from the
 skill directory:
@@ -52,18 +62,20 @@ so and stop — do not improvise the task from this router's one-line summary of
 ### How to route
 
 1. **Explicit task word** → match case-insensitively against names and aliases.
-2. **A bare job ID** (`<company-slug>--<role-slug>`) → "advance this job one stage." Read its
-   row in `jobs/output/jobs.md` and pick by what's missing: no JD → `jd`, JD but no resume →
-   `tailor`, resume but no form → `apply`.
-3. **A bare role phrase** — no task word, no job ID, just a kind of job
+2. **A URL** (`http…`), or a pasted block that reads like a job description → `add`. The
+   user found a job and wants it on the list.
+3. **A bare job ID** (`<company-slug>--<role-slug>`) → "advance this job one stage." Read its
+   row in `jobs/output/jobs.md` and pick by what's missing: no JD → `jd`, JD but no
+   evaluation → `evaluate`, evaluation but no resume → `tailor`, resume but no form → `apply`.
+4. **A bare role phrase** — no task word, no job ID, just a kind of job
    (`/job java full stack developer`, `/job remote staff SRE`) → run `auto` with that as the
    **focus**. This is the common first-time invocation and it must work with an empty
    workspace: `auto` builds a role family out of the phrase and searches on it, with or
    without a resume on file.
-4. **Other natural language** → read it as intent and pick the task it describes
+5. **Other natural language** → read it as intent and pick the task it describes
    ("what's still live?" → `jd`, "who's ghosting me?" → `status`, "make my resume fit this"
-   → `tailor`).
-5. **Genuinely ambiguous** → ask, don't guess. Picking `apply` when they meant `tailor`
+   → `tailor`, "is this one worth applying to?" → `evaluate`, "add this job" → `add`).
+6. **Genuinely ambiguous** → ask, don't guess. Picking `apply` when they meant `tailor`
    wastes a form; picking `search` when they meant `triage` wastes ten minutes.
 
 Say which task you chose in one line before you start. **Pass arguments through verbatim** —
@@ -72,15 +84,18 @@ Say which task you chose in one line before you start. **Pass arguments through 
 
 ## Task isolation — read this before every task
 
-These eight used to be eight separate skills, each with its own `allowed-tools`. They are one
+Eight of these used to be eight separate skills, each with its own `allowed-tools`. They are one
 skill now, so **the tool list above is the union of all eight and no longer constrains any
-single task.** The separation is real and still mandatory; it is just enforced by you rather
+single task** — nor does it for `add` and `evaluate`, which were written as tasks from the
+start. The separation is real and still mandatory; it is just enforced by you rather
 than by the harness. Each task file in `jobs/tasks/` opens with its own **tool budget** — treat
 it as if it were the only tool list you had.
 
 The three that matter most, because the harness can no longer stop you:
 
-- **`triage` and `status` must not touch the browser or the web.** They decide from what is
+- **`triage` and `status` must not touch the browser or the web.** `evaluate` may use web
+  search for public pay data only, with nothing from the resume in the query — never the
+  browser. They decide from what is
   on disk. Wanting a live page means you should be running `jd`.
 - **`tailor` is the only task that may spawn subagents**, max 4, each confined to its own
   `jobs/output/applications/<job-id>/`. `apply` never spawns one — a form is filled with the
@@ -100,7 +115,9 @@ to the user; never work around it.
 |---|---|
 | `search` | `jobs/input/profile/master-resume.md` filled (else run `setup`) |
 | `triage` | rows in `jobs/output/jobs.md` |
+| `add` | nothing — it can be the first thing a user runs |
 | `jd` | a shortlisted row |
+| `evaluate` | `master-resume.md` populated **and** `jobs/output/jds/<job-id>.md` present and not a `manual-required` stub |
 | `tailor` | `jobs/output/jds/<job-id>.md` present and not a `manual-required` stub |
 | `apply` | `jobs/output/applications/<job-id>/resume.*` present |
 
@@ -140,10 +157,14 @@ unattended form (`/job apply --batch`) is still never reached by `auto`: it has 
 for by name, and it stops at a filled form like every other path. If a pipeline run
 seems to want to fill a form, it has misread its own task file.
 
+**Only two tasks chain others.** `auto` runs `search` → `triage` → `jd` → `evaluate` →
+`tailor`. `add` runs `jd` on the jobs it just added, and nothing else — it never evaluates,
+tailors or applies.
+
 ## Snapshot before writing the index
 
-Any task that edits `jobs/output/jobs.md` — `search`, `triage`, `jd`, `tailor`, `apply`,
-`auto` — runs `jobs/bin/snapshot.sh` **once, before its first edit**. It archives the index
+Any task that edits `jobs/output/jobs.md` — `search`, `add`, `triage`, `jd`, `evaluate`,
+`tailor`, `apply`, `auto` — runs `jobs/bin/snapshot.sh` **once, before its first edit**. It archives the index
 to `jobs/output/history/jobs-<timestamp>.md`, no-ops when nothing has changed, and keeps the
 last 50. `make web` renders any of them from its version picker.
 

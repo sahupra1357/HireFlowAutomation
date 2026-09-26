@@ -219,10 +219,10 @@ td a.doc:hover{text-decoration:underline}
 <thead>
 <tr class="hrow">{{range $i,$c := .SumCols}}<th data-i="{{$i}}" data-kind="{{$c.Kind}}"><span class="hlab" title="Sort by {{$c.Name}}">{{$c.Name}}</span><span class="sar"></span><button class="fbtn" type="button" title="Filter {{$c.Name}}" aria-label="Filter {{$c.Name}}"><svg viewBox="0 0 12 12" width="9" height="9" aria-hidden="true"><path d="M1 2h10L7 6.5V11L5 9.6V6.5z" fill="currentColor"/></svg></button></th>{{end}}</tr>
 </thead>
-<tbody>{{range $ri,$row := .Cells}}{{$job := index $.ResumeJob $ri}}<tr>
+<tbody>{{range $ri,$row := .Cells}}{{$job := index $.ResumeJob $ri}}{{$doc := index $.DocJob $ri}}<tr>
 {{range $i,$c := $row}}{{$n := (index $.SumCols $i).Name}}{{if eq $n "Stage"}}<td><span class="stage g-{{slug $c}}">{{$c}}</span></td>
 {{else if eq $n "Verified"}}<td><span class="v-{{slug $c}}">{{$c}}</span></td>
-{{else if eq $n "Status"}}<td>{{if $job}}<a class="pill s-{{slug $c}} doc" href="/doc?job={{$job}}" title="Open the tailored resume">{{$c}}</a>{{else}}<span class="pill s-{{slug $c}}">{{$c}}</span>{{end}}</td>
+{{else if eq $n "Status"}}<td>{{if $doc}}<a class="pill s-{{slug $c}} doc" href="/doc?job={{$doc}}" title="Open this job's documents">{{$c}}</a>{{else}}<span class="pill s-{{slug $c}}">{{$c}}</span>{{end}}</td>
 {{else if or (eq $n "JD") (eq $n "Form")}}<td class="nw">{{$c}}</td>
 {{else if eq $n "Resume"}}<td class="nw">{{if $job}}<a class="doc" href="/doc?job={{$job}}" title="Open the tailored resume">{{$c}}</a>{{else}}{{$c}}{{end}}</td>
 {{else if isURL $c}}<td><a href="{{$c}}" target="_blank" rel="noopener">{{short $c}}</a></td>

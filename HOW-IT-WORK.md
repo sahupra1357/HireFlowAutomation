@@ -12,24 +12,31 @@ HireFlow is not an app with its own AI. **Claude Code is the agent.** The repo h
 
 - **One skill** — `/job` (`.claude/skills/job/SKILL.md`). It is only a router: it reads your
   request, picks a task, and loads that task's instructions.
-- **Nine task files** — `jobs/tasks/*.md`. Each is a plain-Markdown procedure the agent
-  follows (`setup`, `search`, `triage`, `jd`, `tailor`, `apply`, `status`, `interviews`,
-  `auto`). You can edit them; changes apply on the next run.
-- **Helper scripts** — `jobs/bin/` (snapshots, form filling, PDF rendering, daily loop).
+- **Eleven task files** — `jobs/tasks/*.md`. Each is a plain-Markdown procedure the agent
+  follows (`setup`, `search`, `add`, `triage`, `jd`, `evaluate`, `tailor`, `apply`, `status`,
+  `interviews`, `auto`). You can edit them; changes apply on the next run.
+- **Helper scripts** — `jobs/bin/` (snapshots, form filling, PDF rendering, daily loop,
+  health checks).
 - **A dashboard** — `jobs/dashboard/` (Go), started with `make web`.
 
 Everything is split into **what you provide** (`jobs/input/`) and **what the agent produces**
 (`jobs/output/`). Skills read `input/` and write `output/`, never the reverse.
 
 ```
- you drop a resume
-        │
-        ▼
- ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌──────┐   ┌─────────┐   ┌─────────┐
- │  setup  │──▶│ search  │──▶│ triage  │──▶│  jd  │──▶│ tailor  │──▶│  apply  │──▶ YOU click Submit
- └─────────┘   └─────────┘   └─────────┘   └──────┘   └─────────┘   └─────────┘
-   profile      jobs.md       shortlist    jds/*.md   resume.pdf    filled form
-                                                                    (never submitted)
+ you drop a resume                  you found a job yourself
+        │                                   │
+        ▼                                   ▼
+ ┌───────┐  ┌────────┐  ┌────────┐     ┌───────┐
+ │ setup │─▶│ search │─▶│ triage │     │  add  │
+ └───────┘  └────────┘  └────────┘     └───────┘
+  profile    jobs.md    shortlist      shortlisted
+                             │              │
+                             ▼              ▼
+                  ┌──────┐  ┌──────────┐  ┌────────┐  ┌───────┐
+                  │  jd  │─▶│ evaluate │─▶│ tailor │─▶│ apply │──▶ YOU click Submit
+                  └──────┘  └──────────┘  └────────┘  └───────┘
+                  jds/*.md  evaluation.md resume.pdf  filled form
+                            (advice)                  (never submitted)
 ```
 
 Each stage **refuses to start until the previous stage's file exists on disk**, so a failure
@@ -88,6 +95,31 @@ a relevant job comes entirely from the families you confirmed here.
 
 ---
 
+## Step 2b — Add a job you found yourself (`/job <url>` · `/job add`)
+
+Search only finds what the configured sites list. For anything else — a link someone sent,
+a site the search doesn't cover — give it to `add`:
+
+- `/job <url>` (one or several links), `/job add` followed by pasted JD text, or
+  `/job add --inbox` to process every new link in `jobs/input/inbox.md`.
+
+It then:
+
+1. Skips any link or job ID already in the index (reports it instead).
+2. Reads the posting — ATS API first, then the page itself read-only. A login wall
+   (LinkedIn) is never worked around; it's reported with what to do.
+3. Mints the job ID, checks liveness and scam red flags, and scores fit.
+4. Writes the row as **`shortlisted`**, because you picked it, skipping triage. A job that
+   fails a hard filter (e.g. the wrong country) isn't silently dropped; it asks you once at
+   the end.
+5. Hands the new IDs to `jd` to capture the full description. Pasted text is saved as the
+   JD directly.
+
+The agent never edits `inbox.md`; the index is the record of what was processed. Every bare
+`/job` (and `make daily`) also picks up new inbox links automatically.
+
+---
+
 ## Step 3 — Triage: pick what's worth pursuing (`/job triage`)
 
 Works from disk only — no browser. Re-scores each `found` job against your actual resume,
@@ -113,6 +145,28 @@ JD from there, never from a live page.
 **If a job lands on `⏳ manual`:** paste the JD into that stub, or drop the posting as
 `jobs/output/jds/<job-id>-source.pdf` (or `.html`, `.txt`, `.docx`, screenshot). The next run
 picks it up. The agent **never** invents a JD from the title or the company's website.
+
+---
+
+## Step 4b — Evaluate: is this job worth applying to? (`/job evaluate <job-id>`)
+
+Needs the same two things as tailoring: a populated master resume and a real JD. It writes
+`jobs/output/applications/<job-id>/evaluation.md`:
+
+| Section | What it says |
+|---|---|
+| A) Role summary | function, seniority (with the JD words that imply it), work mode, posted pay |
+| B) Requirement match | every JD requirement next to the **quoted** master-resume line that evidences it — strong / partial / none; each gap marked hard blocker / likely screen-out / nice-to-have, with only a truthful mitigation |
+| C) Level & positioning | the JD's level vs yours, what to lead with, what *not* to claim |
+| D) Pay | posted range + public data with sources, vs your floor. Web queries contain only title, level, location — never resume content. No data → "no data found", never an estimate |
+| E) Tailoring plan | what `tailor` should emphasise, and which keywords are *not* supported |
+| F) Interview prep | 3–6 situation/task/action/result stories from the master resume only (missing parts left `—` for you), plus the questions your gaps will draw |
+| G) Verdict | `apply` · `apply-with-caveats` · `skip`, with the deciding reason |
+
+It is **advice**: it never changes Status or the stage columns; it only adds an
+*Evaluation:* line to the job's Details block. `tailor` reads it first. The unattended
+pipeline follows one piece of it: a `skip` verdict isn't tailored, and it's listed for you
+to overrule. Open it from the job's Status pill in `make web`.
 
 ---
 
@@ -202,8 +256,8 @@ your index, scores them for credibility, and writes prep briefs to
 
 ### `/job` — the auto pipeline
 
-Bare `/job` runs `jobs/tasks/auto.md`: resume → role families → search → triage → JDs →
-tailor. It **stops at `tailored`** and never fills a form.
+Bare `/job` runs `jobs/tasks/auto.md`: resume → role families → search → your inbox →
+triage → JDs → evaluate → tailor. It **stops at `tailored`** and never fills a form.
 
 It is a **reconciler, not a script**: each run looks at every job's current state and does
 the next possible thing.
@@ -213,6 +267,8 @@ the next possible thing.
 - Fit 40 – threshold → left at `found` for you to promote.
 - A failed JD capture → `⏳ manual`, the run moves on, and all failures are listed once at
   the end.
+- Each job about to be tailored is evaluated first; a `skip` verdict isn't tailored and is
+  listed for you (`--no-evaluate` turns this pass off).
 - Next run: anything you unblocked (pasted a JD) continues; finished work is not redone.
 
 `/job java full stack developer` (a role phrase) works even with no resume: it searches on
@@ -222,8 +278,9 @@ that phrase, captures JDs, marks fits provisional, and stops before tailoring.
 
 | Stage | What | Model (override via env) |
 |---|---|---|
+| 0 | health check (`make doctor`); an index error stops the run | free, no agent |
 | 1 | `/job search` once per confirmed family (or one generic search if setup hasn't run) | `SEARCH_MODEL` = sonnet |
-| 2 | `/job auto --skip-search` — triage, JDs, tailoring | `REASON_MODEL` = opus |
+| 2 | `/job auto --skip-search` — inbox, triage, JDs, evaluation, tailoring | `REASON_MODEL` = opus |
 | 3 | `/job apply --batch` — fill new forms in a visible browser | `APPLY_MODEL` = sonnet |
 | 4 | `jobs/bin/morning-run.sh` — reopen every unsubmitted filled form | free, no agent |
 
@@ -251,6 +308,33 @@ Starts the dashboard at http://localhost:8080 (stop with `make stop`). It reads
 
 ---
 
+## Health check — `make doctor`
+
+Runs on demand, **and automatically before every `/job` and `make daily` search**. There, an
+index error stops the run before anything is searched. Setup findings never stop it (they
+print as `DEGRADED`, since the pipeline already handles a missing resume or missing
+families) and are listed under *Needs you*. Skip it with `make daily --no-doctor`.
+
+Two read-only scripts that exit non-zero on an error:
+
+- **`check-setup.py`** checks that:
+  - a resume is dropped in, and the master resume is populated and newer than it;
+  - no placeholders are left in `search-profile.md`, and the families are confirmed;
+  - the work-authorization answers are filled;
+  - the resume-render route is in place (`.docx` map or measured layout);
+  - `claude`, `go` and the browser are installed;
+  - **nothing personal is committed**: your name, email and phone are searched for in
+    every tracked file, and per-user files must be untracked.
+- **`check-index.py`** checks that:
+  - every `jobs.md` row has the right number of cells, a valid job ID and a real status;
+  - every JD / Resume / Form ✓ has its file behind it;
+  - no status is ahead of its artifacts;
+  - there are no orphan JDs or application folders;
+  - `tracker.md` agrees with `jobs.md`;
+  - it also flags any dropped-in JD not yet picked up.
+
+---
+
 ## Safety rails, in one place
 
 | Rule | How it's enforced |
@@ -258,11 +342,11 @@ Starts the dashboard at http://localhost:8080 (stop with `make stop`). It reads
 | Never submit | Agent stops at review screen; `fill-form.py` / `refill.js` click no submit control; only `make submitted` sets `submitted` |
 | Never fabricate | Tailoring is a subset of `master-resume.md`; `verify-tailored.py` flags new figures/years/certs |
 | Never guess screening answers | Only from `application-answers.md`; otherwise ask (attended) or leave blank (batch) |
-| Never invent a JD | Tailor refuses without a real `jds/<job-id>.md` |
+| Never invent a JD | Tailor and evaluate refuse without a real `jds/<job-id>.md`; `add` never reconstructs one from a title |
 | Never apply twice | `tracker.md` checked before every apply |
 | No accounts / payments without asking | Attended apply asks; batch skips |
 | CAPTCHA / MFA / bot walls | Hand the browser to you, don't fight |
-| Your data stays local | `jobs/input/profile/` goes only to the employer's own form |
+| Your data stays local | `jobs/input/profile/` goes only to the employer's own form; evaluate's pay search sends only title/level/location; `make doctor` fails if your name, email or phone is in a committed file |
 | Undo | `jobs/bin/snapshot.sh` before every edit to `jobs.md`; `make history` lists them |
 
 ---
@@ -274,9 +358,12 @@ Starts the dashboard at http://localhost:8080 (stop with `make stop`). It reads
 # 2. in Claude Code:
 /job setup                 # confirm your role families
 /job                       # search → JDs → tailored resumes
+/job <url>                 # (optional) add a job you found yourself
 # 3. in a terminal:
-make web                   # review jobs, resumes, "Needs you"
+make doctor                # check the setup is complete
+make web                   # review jobs, evaluations, resumes, "Needs you"
 # 4. back in Claude Code, for a job you like:
+/job evaluate <job-id>     # (if /job hasn't already) — apply, or skip?
 /job apply <job-id>        # fills the form, stops before Submit
 # 5. you click Submit, then:
 make submitted JOB=<job-id>

@@ -70,10 +70,11 @@ user provides, `output/` is what the agent produces.
 
 | Path | What it holds |
 |---|---|
-| `jobs/tasks/*.md` | **The nine task files** `/job` routes to: `auto`, `setup`, `search`, `triage`, `jd`, `tailor`, `apply`, `status`, `interviews`. The agent's procedures, kept in the workspace so they can be edited without touching the skill. Each opens with its own tool budget. |
+| `jobs/tasks/*.md` | **The eleven task files** `/job` routes to: `auto`, `setup`, `search`, `add`, `triage`, `jd`, `evaluate`, `tailor`, `apply`, `status`, `interviews`. The agent's procedures, kept in the workspace so they can be edited without touching the skill. Each opens with its own tool budget. |
 | `jobs/input/profile/source-resumes/` | Original resume files the user dropped in (PDF/DOCX/MD). **The only source of identity.** |
 | `jobs/input/profile/master-resume.md` | Single source of truth for the user's experience **and identity** (name, email, phone in its Contact section). Gitignored; seeded from `jobs/input/templates/master-resume.md` by `/job setup`. |
 | `jobs/input/profile/links.md` | LinkedIn, GitHub, portfolio, references. Gitignored. |
+| `jobs/input/inbox.md` | **Jobs the user found themselves** — one link per line under `## Add`. `/job add --inbox` and every bare `/job` pick up links not yet in the index. The agent never edits it; the index records what was processed. Gitignored; `make init` seeds it from `jobs/input/templates/inbox.md`. |
 | `jobs/input/config/job-sites.md` | Sites to search, how to reach each one, per-site notes. **User-editable.** |
 | `jobs/input/config/search-profile.md` | **The role families** the search targets, plus keywords, locations, comp floor, hard filters. User-defined, any number of families, no domain baked in. Seeded from `jobs/input/templates/search-profile.md` by `/job setup`. |
 | `jobs/input/config/resume-docx-map.json` | **Where the content sits in the user's own `.docx`** — summary, skill lines, each job's bullets, education — mapped by `/job setup` with `jobs/bin/docx-resume.py map`. `make pdf` then copies that `.docx` per job and swaps in only the tailored text (→ `resume.docx` + a Word-exported `resume.pdf`), so the format is exactly theirs. Gitignored. |
@@ -90,13 +91,14 @@ user provides, `output/` is what the agent produces.
 | `jobs/bin/fill-form.py` | Replays a job's `form-fill.json` into the **visible** browser — text, comboboxes, checkboxes, and a real `resume.pdf` upload. The mechanical half of `/job apply --batch`, and what `jobs/bin/morning-run.sh` calls for every mapped job each morning. Clicks no submit control. |
 | `jobs/bin/morning-run.sh` | `make morning` — re-opens every mapped, unsubmitted application filled in its own tab, re-using a tab already on that posting. No agent, no tokens. |
 | `jobs/bin/reset.sh` | `make reset` — puts the workspace back to a fresh start: deletes everything under `jobs/output/` and `interviews/output/`, restores `tracker.md` from `jobs/input/templates/tracker.md`, and leaves `jobs/input/` alone. `--profile` also wipes the resume, links and answer bank (then `/job setup` is required again). Archives whatever it removes to `.resets/` first, and refuses to run unattended without `--yes`. **Never run it on the user's behalf without them asking for it by name.** |
-| `jobs/bin/daily-run.sh` | `make daily` — the whole loop in one command. Stage 1, on `SEARCH_MODEL` (default `sonnet`): if setup has run (populated master resume + `setup-families.md`), `/job search "<family>"` once per confirmed family; otherwise one `/job search --limit $FALLBACK_LIMIT` (default 50) across `search-profile.md`'s generic families. Stage 2: `/job auto --skip-search` (triage → JD → tailor) on `REASON_MODEL` (default `opus`). Stage 3: `/job apply --batch` on `APPLY_MODEL` (default `sonnet`). Stage 4: `morning-run.sh` (free). Locked so a manual run and the scheduled one can't both edit `jobs/output/jobs.md`. |
+| `jobs/bin/daily-run.sh` | `make daily` — the whole loop in one command. Stage 1, on `SEARCH_MODEL` (default `sonnet`): if setup has run (populated master resume + `setup-families.md`), `/job search "<family>"` once per confirmed family; otherwise one `/job search --limit $FALLBACK_LIMIT` (default 50) across `search-profile.md`'s generic families. Stage 2: `/job auto --skip-search` (triage → JD → tailor) on `REASON_MODEL` (default `opus`). Stage 3: `/job apply --batch` on `APPLY_MODEL` (default `sonnet`). Stage 4: `morning-run.sh` (free). Before stage 1 it runs the `make doctor` checks and stops on an index error (`--no-doctor` skips). Locked so a manual run and the scheduled one can't both edit `jobs/output/jobs.md`. |
 | `jobs/output/logs/daily-<date>.log` | One log per daily run, last 30 kept. |
+| `jobs/bin/check-setup.py` · `jobs/bin/check-index.py` | `make doctor` (or `doctor-setup` / `doctor-index` alone). **Setup:** resume dropped in, master resume populated and newer than it, no `{{placeholders}}` left, families confirmed, work-authorization answers filled, the resume-render route in place, tools present — and **nothing personal committed**: the user's name, email and phone are searched for in every tracked file. **Index:** every row's shape, job ID and Status; each JD / Resume / Form ✓ backed by its file; Status never ahead of its artifacts; orphan files; `tracker.md` agreeing with `jobs.md`. Both read only and exit 1 on an error. **`make daily` and `/job` run both before searching**: an index error stops the run before a token is spent; setup findings never stop it (`check-setup.py --preflight` prints them as DEGRADED and exits 0) and are listed under *Needs you*. `make daily --no-doctor` skips it. |
 | `jobs/bin/mark-submitted.sh` | `make submitted JOB=<id>` — the user's own confirmation that they clicked Submit. The **only** thing that may set Status `submitted`, and what stops `make morning` re-opening a sent application every day. |
 | `jobs/bin/refill-engine.js` · `jobs/bin/make-refill.py` | The replay half of `/job apply --batch`: the generator turns a job's `form-fill.json` into a `refill.js` the user pastes into the application page's console to refill the form later. The engine never clicks a button, so it cannot submit. |
 | `jobs/output/jds/<job-id>.md` | **The full job description**, one file per job, written by `/job jd` — automatic and manual capture both land here. Everything downstream reads the JD from here, never from a live page. |
 | `jobs/output/jds/<job-id>-source.*` | Raw posting the **user** downloaded by hand when auto-capture failed (`.pdf`, `.html`, `.txt`, `.md`, `.docx`, screenshot). The one user-supplied file under `output/`, because it belongs next to the JD it becomes. `/job jd` picks it up on the next run. |
-| `jobs/output/applications/<job-id>/` | Per-job: tailored resume (`resume.md`, `resume.pdf`), cover letter, log, screenshots — plus, after `/job apply --batch`, the field map `form-fill.json` and the replay script `refill.js` generated from it by `jobs/bin/make-refill.py`. |
+| `jobs/output/applications/<job-id>/` | Per-job: `evaluation.md` from `/job evaluate`, tailored resume (`resume.md`, `resume.pdf`), cover letter, log, screenshots — plus, after `/job apply --batch`, the field map `form-fill.json` and the replay script `refill.js` generated from it by `jobs/bin/make-refill.py`. |
 | `jobs/dashboard/` | Go dashboard for `jobs/output/jobs.md` — `make web` → http://localhost:8080. Also the resume PDF renderer (`make pdf`) and the document viewer behind the table's Status / Resume links. |
 
 ### `interviews/` — interview-experience intel (separate `ix` namespace)
@@ -133,8 +135,10 @@ a one-line summary of each task, which is never enough to run it — **always re
 | See where every job stands, starting nothing | `/job status` |
 | Set up / refresh their resume + profile | `/job setup` |
 | Find jobs | `/job search` |
+| Add a job they found themselves (a link, pasted JD text, or their inbox) | `/job <url>` · `/job add …` · `/job add --inbox` |
 | Rank, dedupe, and shortlist what was found | `/job triage` |
 | Check which postings are still live and grab the full JDs | `/job jd` |
+| Get a written assessment of a role — requirement match, gaps, level, pay, interview stories, apply/skip | `/job evaluate <job-id>` (or `--all`) |
 | Tailor the resume (and cover letter) to one job | `/job tailor <job-id>` |
 | Tailor resumes for every job that has a JD, in parallel | `/job tailor --all` |
 | Actually fill out an application | `/job apply <job-id>` |
@@ -144,7 +148,8 @@ a one-line summary of each task, which is never enough to run it — **always re
 ### The auto pipeline — `/job`
 
 Bare `/job` runs `jobs/tasks/auto.md`: read the resume → infer 3–4 role families → search →
-collect JDs → tailor. It stops at `tailored` and **can never fill or submit a form**.
+pick up `jobs/input/inbox.md` → collect JDs → evaluate → tailor. A job whose evaluation
+verdict is `skip` is not tailored unattended; it is listed for the user to overrule. It stops at `tailored` and **can never fill or submit a form**.
 
 **A missing resume degrades the run, it does not block it.** The resume feeds role-family
 inference, the 25-point skill-overlap dimension of the fit score, and tailoring — nothing
@@ -176,14 +181,18 @@ unreviewed guess about what job someone wants is the most expensive thing here t
 Normal end-to-end flow:
 
 ```
-/job setup → /job search → /job triage → /job jd → /job tailor → /job apply → /job status
-  (once)                                      ↑            ↑             ↑
-                                       careers page,  one subagent   one job at a
-                                       or the user    per job        time, never
-                                       drops the JD                  parallel
+/job setup → /job search → /job triage → /job jd → /job evaluate → /job tailor → /job apply → /job status
+  (once)         /job add ──(shortlisted)──┘   ↑        (optional,        ↑             ↑
+             (a job you found)          careers page,   advice only)  one subagent   one job at a
+                                        or the user                   per job        time, never
+                                        drops the JD                                 parallel
 ```
 
-`auto` is the only task that chains others, and the router enforces one rule on top of it:
+`make doctor` at any point checks the setup and that the index agrees with the files.
+
+`auto` and `add` are the only tasks that chain others — `auto` runs search → inbox →
+triage → jd → evaluate → tailor, and `add` runs `jd` on the jobs it just added and nothing
+more. The router enforces one rule on top:
 **`auto` never reaches `apply`.** Applying is attended, always — one job, user watching, user
 submits.
 
@@ -192,14 +201,14 @@ submits.
 artifact exists on disk, so a failure at one stage never half-produces the next one and any
 task can be re-run alone.
 
-**Task isolation is now enforced by you, not by the harness.** These eight were once eight
+**Task isolation is now enforced by you, not by the harness.** Eight of these were once eight
 skills, each with its own `allowed-tools`. As one skill they share a single tool list that is
 the union of all eight, so nothing mechanically stops `triage` from opening a browser or
 `apply` from spawning a subagent. Every file in `jobs/tasks/` therefore opens with a **tool budget** —
 read it and treat it as the only tool list you have. Reaching outside it means you have
 drifted into another task: stop, re-route, and do not carry the tool across.
 
-Load **one task file at a time.** Reading all eight defeats the point of the split and floods
+Load **one task file at a time.** Reading them all defeats the point of the split and floods
 the context with instructions for work you are not doing.
 
 **Skills read from `input/`, write to `output/`, and read `jobs/tasks/` for their own
