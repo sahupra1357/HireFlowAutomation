@@ -41,6 +41,7 @@
 #
 # Models are any value `claude --model` accepts (alias or full ID), overridable per run:
 #   SEARCH_MODEL=haiku REASON_MODEL=opus FALLBACK_LIMIT=25 make daily
+#   SITES=linkedin make daily    # stage 1 searches only these sources (search.md `--sites`)
 #
 # It cannot submit anything. That is a workspace rule the agent follows, and the two
 # fill scripts click no submit control.
@@ -57,7 +58,7 @@ for a in "$@"; do
     --no-apply)  DO_APPLY=0 ;;
     --no-doctor) DO_DOCTOR=0 ;;
     --unattended) UNATTENDED=1 ;;
-    -h|--help) sed -n '2,46p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,47p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown flag: $a"; exit 1 ;;
   esac
 done
@@ -66,6 +67,8 @@ SEARCH_MODEL=${SEARCH_MODEL:-sonnet}
 REASON_MODEL=${REASON_MODEL:-opus}
 APPLY_MODEL=${APPLY_MODEL:-sonnet}
 FALLBACK_LIMIT=${FALLBACK_LIMIT:-50}
+SITES=${SITES:-}
+SITES_ARG=${SITES:+ --sites $SITES}
 
 # An unattended agent cannot answer a permission prompt, so the scheduled run bypasses them.
 # Override with PERMISSION_MODE=acceptEdits (etc.) if you keep a tighter allowlist.
@@ -177,10 +180,10 @@ if [ "$DO_SEARCH" = "1" ] && [ "$MODE" = "setup" ]; then
   i=0
   for fam in "${FAMILIES[@]}"; do
     i=$((i+1))
-    agent "/job search $fam" "stage 1 · search $i/${#FAMILIES[@]} · $fam" "$SEARCH_MODEL"
+    agent "/job search $fam$SITES_ARG" "stage 1 · search $i/${#FAMILIES[@]} · $fam${SITES:+ · $SITES}" "$SEARCH_MODEL"
   done
 elif [ "$DO_SEARCH" = "1" ]; then
-  agent "/job search --limit $FALLBACK_LIMIT" "stage 1 · search · all generic families, limit $FALLBACK_LIMIT" "$SEARCH_MODEL"
+  agent "/job search --limit $FALLBACK_LIMIT$SITES_ARG" "stage 1 · search · all generic families, limit $FALLBACK_LIMIT${SITES:+ · $SITES}" "$SEARCH_MODEL"
 else
   say ""; say "── stage 1 skipped"
 fi

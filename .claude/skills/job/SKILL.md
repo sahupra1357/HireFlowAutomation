@@ -1,7 +1,7 @@
 ---
 name: job
 description: The complete job-search agent — one skill, routed by subcommand. Sets up the profile from a resume, searches the configured sites for jobs, adds jobs the user found themselves (a pasted URL or JD, or an inbox file), triages and shortlists them, collects full job descriptions, writes an apply/skip evaluation of a role, tailors the resume and cover letter to a specific role, fills out application forms in the browser (stopping before submit), tracks application status and follow-ups, and finds real interview experiences. Use whenever the user mentions job search, finding roles, pastes a job link, asks whether a job is worth applying to, resumes or CVs, tailoring, job descriptions, applying to a job, application status, follow-ups, or interview prep — and for "/job ..." in any form.
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, WebSearch, WebFetch, Agent
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, WebSearch, WebFetch, Agent, mcp__apify__harvestapi--linkedin-job-search, mcp__apify__get-actor-run, mcp__apify__get-dataset-items, mcp__apify__abort-actor-run
 ---
 
 # /job
@@ -30,7 +30,7 @@ job. It stops at `tailored`; it cannot fill a form. For a read-only look, `/job 
 | Task | Aliases | Instructions | Args |
 |---|---|---|---|
 | `setup` | `profile`, `resume-setup` | `jobs/tasks/setup.md` | — |
-| `search` | `find` | `jobs/tasks/search.md` | focus, `--limit N`, `--country "<list>"` |
+| `search` | `find` | `jobs/tasks/search.md` | focus, `--limit N`, `--country "<list>"`, `--sites <list>` |
 | `triage` | `shortlist`, `pick` | `jobs/tasks/triage.md` | fit floor |
 | `add` | `import`, `inbox`, *(a bare URL or pasted JD)* | `jobs/tasks/add.md` | url(s), `--inbox`, pasted text, `--no-jd` |
 | `jd` | `jds`, `collect`, `describe` | `jobs/tasks/jd.md` | job-id or `--all` |
@@ -39,7 +39,7 @@ job. It stops at `tailored`; it cannot fill a form. For a read-only look, `/job 
 | `apply` | `fill` | `jobs/tasks/apply.md` | job-id **(required)**, or `--batch [job-id ...]` |
 | `status` | `track`, `tracker`, `board` | `jobs/tasks/status.md` | — |
 | `interviews` | `ix`, `prep` | `jobs/tasks/interviews.md` | company |
-| `auto` | *(no argument)*, `run`, `all`, `pipeline` | `jobs/tasks/auto.md` | `--fresh`, `--limit N`, `--country "<list>"`, `--skip-search`, `--no-evaluate` |
+| `auto` | *(no argument)*, `run`, `all`, `pipeline` | `jobs/tasks/auto.md` | `--fresh`, `--limit N`, `--country "<list>"`, `--sites <list>`, `--skip-search`, `--no-evaluate` |
 
 Two more come with `make`, not `/job`: `make doctor` runs `jobs/bin/check-setup.py` (profile,
 config, tools, nothing personal committed) and `jobs/bin/check-index.py` (`jobs.md` vs

@@ -71,6 +71,15 @@ type page struct {
 	// so it never goes through attribute escaping.
 	ColMeta template.JS
 
+	// RowDate[r] is row r's "First seen" date from its Details block (YYYY-MM-DD), or
+	// "undated". Dates groups the rows by it, newest first — the Summary's date tabs.
+	RowDate []string
+	Dates   []dateGroup
+
+	// SubmitJob[r] is row r's job ID when its status can still be moved to `submitted` —
+	// the Status cell then carries a "Mark submitted" button. Empty on a snapshot view.
+	SubmitJob []string
+
 	// Blockquote warnings from the jobs.md preamble ("> ⚠️ Fit scores are provisional…").
 	// Separate from Meta because they are conditions the user should act on, not facts.
 	Warnings []string
@@ -214,6 +223,82 @@ func tallyOpts(vals []string) []opt {
 		out = out[:maxOpts]
 	}
 	return out
+}
+
+// dateGroup is one tab in the Summary's date strip: every row first seen on Date.
+type dateGroup struct {
+	Date  string // YYYY-MM-DD, or "undated"
+	Label string // short form for the tab, "Oct 2"
+	Long  string // dropdown form, "Fri 2 Oct 2026"
+	N     int
+}
+
+var (
+	detailIDRe  = regexp.MustCompile("(?m)^- \\*\\*Job ID:\\*\\* `?([a-z0-9-]+)`?")
+	firstSeenRe = regexp.MustCompile(`(?m)^- \*\*First seen:\*\* (\d{4}-\d{2}-\d{2})`)
+)
+
+// firstSeen maps job ID → "First seen" date, read from the Details blocks. The Summary
+// table carries no date column; every Details block records the run that found the job.
+func firstSeen(md string) map[string]string {
+	out := map[string]string{}
+	i := strings.Index(md, "\n## Details")
+	if i < 0 {
+		return out
+	}
+	for _, blk := range strings.Split(md[i:], "\n## ") {
+		id, d := detailIDRe.FindStringSubmatch(blk), firstSeenRe.FindStringSubmatch(blk)
+		if id != nil && d != nil {
+			if _, dup := out[id[1]]; !dup {
+				out[id[1]] = d[1]
+			}
+		}
+	}
+	return out
+}
+
+// groupDates tags each Summary row with its first-seen date and tallies the groups,
+// newest first, with "undated" last.
+func groupDates(p *page, md string) {
+	seen := firstSeen(md)
+	n := map[string]int{}
+	for _, id := range p.Summary.col("Job ID") {
+		d := seen[strings.TrimSpace(id)]
+		if d == "" {
+			d = "undated"
+		}
+		p.RowDate = append(p.RowDate, d)
+		n[d]++
+	}
+	for d, c := range n {
+		g := dateGroup{Date: d, Label: "Undated", Long: "Undated", N: c}
+		if t, err := time.Parse("2006-01-02", d); err == nil {
+			g.Label, g.Long = t.Format("Jan 2"), t.Format("Mon 2 Jan 2006")
+		}
+		p.Dates = append(p.Dates, g)
+	}
+	sort.Slice(p.Dates, func(i, j int) bool {
+		a, b := p.Dates[i].Date, p.Dates[j].Date
+		if (a == "undated") != (b == "undated") {
+			return b == "undated"
+		}
+		return a > b
+	})
+}
+
+// markSubmittable fills SubmitJob. A snapshot is history, so it offers no buttons.
+func markSubmittable(p *page) {
+	ids, st := p.Summary.col("Job ID"), p.Summary.col("Status")
+	p.SubmitJob = make([]string, len(p.Summary.Rows))
+	if p.Viewing != "" {
+		return
+	}
+	for i := range p.Summary.Rows {
+		id := strings.TrimSpace(cell(ids, i))
+		if submittable[strings.ToLower(strings.TrimSpace(cell(st, i)))] && jobIDRe.MatchString(id) {
+			p.SubmitJob[i] = id
+		}
+	}
 }
 
 // snapshot is one archived jobs.md under jobs/output/history/.
@@ -605,6 +690,7 @@ func load(path string) (*page, error) {
 		}
 	}
 	computeStats(p)
+	groupDates(p, md)
 	return p, nil
 }
 
@@ -753,6 +839,7 @@ func main() {
 			return
 		}
 		p.Viewing = viewing
+		markSubmittable(p)
 		p.History = scanHistory(liveDir)
 		linkDocs(p, liveDir)
 		loadIX(p, ixAbs)
@@ -763,6 +850,7 @@ func main() {
 	})
 
 	http.HandleFunc("/doc", docHandler(filepath.Dir(abs)))
+	http.HandleFunc("/submit", submitHandler(filepath.Dir(abs)))
 
 	if ixAbs == "" {
 		log.Printf("interviews index not found — the Interviews tab will be empty (run /interview-search)")

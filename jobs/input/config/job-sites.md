@@ -5,6 +5,9 @@
 Sites are tried **in tier order**, and the run stops sweeping once the candidate pool is
 full. So tier order is a quality ranking: what is listed first is what you mostly get.
 
+`--sites <keys>` narrows one run to named sources: `ats` (Tier 1), `themuse`, `hn`, `adzuna`,
+`linkedin`, `websearch`, `careers` (Tier 5). E.g. `/job search --sites linkedin`.
+
 ---
 
 ## Tier 1 — ATS board APIs  ⭐ the primary source
@@ -194,11 +197,9 @@ curl -s "https://hn.algolia.com/api/v1/items/<objectID>"     # then read the com
 
 - Enabled: yes
 - Method: `apify` (`mcp__apify__harvestapi--linkedin-job-search`)
-- **BLOCKED until approved once.** The Actor needs account-level permission before it will
-  run. Approve it here, then it works for every later run:
-
-  <https://console.apify.com/actors/zn01OAlzP853oqn4Z?approvePermissions=true>
-
+- Key: `linkedin` — `/job search --sites linkedin` searches this and nothing else.
+- Actor permission approved in the Apify console (2026-10-07). If a run ever reports it
+  needs approval again: <https://console.apify.com/actors/zn01OAlzP853oqn4Z?approvePermissions=true>
 - Notes: the largest single source by volume. Pass the search terms, location, and a
   `postedLimit` matching the recency filter; retrieve with `mcp__apify__get-dataset-items`.
   While unapproved, the run **skips it and says so once** — never stall waiting on it.

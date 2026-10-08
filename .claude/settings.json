@@ -18,7 +18,11 @@
       "Write(./interviews/output/**)",
       "Edit(./interviews/output/**)",
       "Edit(./jobs/input/config/**)",
-      "Edit(./jobs/input/profile/**)"
+      "Edit(./jobs/input/profile/**)",
+      "mcp__apify__harvestapi--linkedin-job-search",
+      "mcp__apify__get-actor-run",
+      "mcp__apify__get-dataset-items",
+      "mcp__apify__abort-actor-run"
     ],
     "deny": []
   }

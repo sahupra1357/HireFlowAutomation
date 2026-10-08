@@ -179,6 +179,23 @@ tr.hide{display:none}
   .tbar button:hover{background:#27272a}
 }
 
+/* date strip: one tab per "First seen" date, as many as fit (max 15), plus a dropdown of all */
+.dbar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.dtabs{display:flex;flex-wrap:nowrap;gap:4px;overflow:hidden;flex:1 1 auto;min-width:0}
+.dtab{appearance:none;flex:0 0 auto;font:inherit;font-size:12.5px;white-space:nowrap;cursor:pointer;
+  padding:4px 10px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--muted)}
+.dtab:hover{color:var(--ink)}
+.dtab[aria-selected=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.dtab .count{display:inline-block;margin-left:6px;font-size:11px;opacity:.8;font-variant-numeric:tabular-nums}
+#dsel{flex:0 0 auto;font:inherit;font-size:12.5px;padding:4px 8px;border:1px solid var(--line);
+  border-radius:7px;background:var(--panel);color:var(--ink);max-width:220px}
+
+/* "Mark submitted" — the user's own confirmation; never set by the agent */
+.subm{margin-left:6px;font:inherit;font-size:11px;padding:1px 7px;border-radius:20px;cursor:pointer;
+  border:1px solid var(--line);background:var(--panel);color:var(--muted);vertical-align:1px}
+.subm:hover{border-color:var(--ok);color:var(--ok)}
+.subm:disabled{opacity:.6;cursor:progress}
+
 /* a linked cell keeps its pill colour — the link is the affordance, not a blue word */
 td a.doc{text-decoration:none;cursor:pointer}
 td a.doc:hover{text-decoration:underline}
@@ -216,15 +233,22 @@ td a.doc:hover{text-decoration:underline}
 
 <section id="summary">
 {{if .Summary.Rows}}
+<div class="dbar">
+  <div class="dtabs" id="dtabs" role="tablist" aria-label="First seen">
+    <button class="dtab" type="button" role="tab" data-d="" title="Every date">All<span class="count">{{len .Summary.Rows}}</span></button>
+    {{range .Dates}}<button class="dtab" type="button" role="tab" data-d="{{.Date}}" title="First seen {{.Long}}">{{.Label}}<span class="count">{{.N}}</span></button>{{end}}
+  </div>
+  <select id="dsel" aria-label="Jump to a first-seen date"><option value="">All dates · {{len .Summary.Rows}}</option>{{range .Dates}}<option value="{{.Date}}">{{.Long}} · {{.N}}</option>{{end}}</select>
+</div>
 <div class="tbar"><span id="rowcount"></span><button id="clearf" type="button">Clear filters</button></div>
 <div class="scroll"><table id="jobs">
 <thead>
 <tr class="hrow">{{range $i,$c := .SumCols}}<th data-i="{{$i}}" data-kind="{{$c.Kind}}"><span class="hlab" title="Sort by {{$c.Name}}">{{$c.Name}}</span><span class="sar"></span><button class="fbtn" type="button" title="Filter {{$c.Name}}" aria-label="Filter {{$c.Name}}"><svg viewBox="0 0 12 12" width="9" height="9" aria-hidden="true"><path d="M1 2h10L7 6.5V11L5 9.6V6.5z" fill="currentColor"/></svg></button></th>{{end}}</tr>
 </thead>
-<tbody>{{range $ri,$row := .Cells}}{{$job := index $.ResumeJob $ri}}{{$doc := index $.DocJob $ri}}{{$kw := index $.Kw $ri}}<tr>
+<tbody>{{range $ri,$row := .Cells}}{{$job := index $.ResumeJob $ri}}{{$doc := index $.DocJob $ri}}{{$kw := index $.Kw $ri}}<tr data-date="{{index $.RowDate $ri}}">
 {{range $i,$c := $row}}{{$n := (index $.SumCols $i).Name}}{{if eq $n "Stage"}}<td><span class="stage g-{{slug $c}}">{{$c}}</span></td>
 {{else if eq $n "Verified"}}<td><span class="v-{{slug $c}}">{{$c}}</span></td>
-{{else if eq $n "Status"}}<td>{{if $doc}}<a class="pill s-{{slug $c}} doc" href="/doc?job={{$doc}}" title="Open this job's documents">{{$c}}</a>{{else}}<span class="pill s-{{slug $c}}">{{$c}}</span>{{end}}</td>
+{{else if eq $n "Status"}}<td class="nw">{{if $doc}}<a class="pill s-{{slug $c}} doc" href="/doc?job={{$doc}}" title="Open this job's documents">{{$c}}</a>{{else}}<span class="pill s-{{slug $c}}">{{$c}}</span>{{end}}{{with index $.SubmitJob $ri}}<button class="subm" type="button" data-job="{{.}}" title="I clicked Submit on the employer's form — mark this job submitted">✓ Submitted</button>{{end}}</td>
 {{else if or (eq $n "JD") (eq $n "Form")}}<td class="nw">{{$c}}</td>
 {{else if eq $n "Resume"}}<td class="nw">{{if $job}}<a class="doc" href="/doc?job={{$job}}" title="Open the tailored resume">{{$c}}</a>{{if $kw.Pct}}<span class="kw kw-{{$kw.Band}}" title="{{$kw.Tip}}">{{$kw.Pct}}%</span>{{end}}{{else}}{{$c}}{{end}}</td>
 {{else if isURL $c}}<td><a href="{{$c}}" target="_blank" rel="noopener">{{short $c}}</a></td>
@@ -346,6 +370,7 @@ const show=id=>{
   tabs.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id));
   ['summary','backlog','ix','dash'].forEach(s=>document.getElementById(s).hidden=(s!==id));
   try{location.hash=id}catch(e){}
+  window.dispatchEvent(new Event('resize'));
 };
 tabs.forEach(b=>b.onclick=()=>show(b.dataset.t));
 const h=(location.hash||'').replace('#','');
@@ -393,22 +418,75 @@ if(['summary','backlog','ix','dash'].includes(h))show(h);
   // index, so removing a column silently moved every saved filter one column to the left.
   var filters = {}, draft = null, sortI = -1, sortDir = 1, openI = -1, KEY = 'jobtable4';
 
+  // ---- date tabs -------------------------------------------------------------
+  // One tab per "First seen" date, newest first. As many as fit the strip, never more
+  // than MAXTABS; the dropdown lists every date, and picking one the strip had no room
+  // for swaps it in as the last visible tab. "" = All. Remembered per browser.
+  var MAXTABS = 15, DKEY = 'jobdate1';
+  var strip = document.getElementById('dtabs'), dsel = document.getElementById('dsel');
+  var dtabs = strip ? Array.prototype.slice.call(strip.querySelectorAll('.dtab')) : [];
+  var dateSel = null;
+  function hasDate(d){ return dtabs.some(function(b){ return b.dataset.d === d; }); }
+
+  function layoutTabs(){
+    if(!strip) return;
+    var all = dtabs[0], dated = dtabs.slice(1), gap = 4;
+    dated.forEach(function(b){ b.hidden = true; });
+    var avail = strip.clientWidth, used = all.offsetWidth, shown = [];
+    for(var i = 0; i < dated.length && shown.length < MAXTABS; i++){
+      var b = dated[i]; b.hidden = false;
+      if(used + gap + b.offsetWidth > avail){ b.hidden = true; break; }
+      used += gap + b.offsetWidth; shown.push(b);
+    }
+    // the active date must always have a visible tab
+    var act = dated.filter(function(b){ return b.dataset.d === dateSel; })[0];
+    if(act && shown.indexOf(act) === -1){
+      act.hidden = false;
+      while(shown.length && used + gap + act.offsetWidth > avail){
+        var last = shown.pop(); used -= gap + last.offsetWidth; last.hidden = true;
+      }
+    }
+  }
+
+  function pickDate(d){
+    dateSel = hasDate(d) ? d : '';
+    dtabs.forEach(function(b){ b.setAttribute('aria-selected', b.dataset.d === dateSel); });
+    if(dsel) dsel.value = dateSel;
+    try{ localStorage.setItem(DKEY, dateSel); }catch(e){}
+    layoutTabs();
+    if(rows) apply();
+  }
+
+  dtabs.forEach(function(b){ b.addEventListener('click', function(){ pickDate(b.dataset.d); }); });
+  if(dsel) dsel.addEventListener('change', function(){ pickDate(dsel.value); });
+  window.addEventListener('resize', layoutTabs);
+  (function(){
+    var d = null;
+    try{ d = localStorage.getItem(DKEY); }catch(e){}
+    // first visit: the newest date, so the page opens on the latest run, not everything
+    if(d === null || !hasDate(d)) d = dtabs[1] ? dtabs[1].dataset.d : '';
+    dateSel = d;
+    dtabs.forEach(function(b){ b.setAttribute('aria-selected', b.dataset.d === dateSel); });
+    if(dsel) dsel.value = dateSel;
+  })();
+
   function cell(r,i){ var c = r.cells[i]; return c ? c.textContent.trim() : ''; }
   function num(v){ var n = parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n) ? null : n; }
   function sel(i){ return filters[i] && filters[i].length ? filters[i] : null; }
 
   function apply(){
-    var n = 0;
+    var n = 0, m = 0;
     rows.forEach(function(r){
-      var ok = Object.keys(filters).every(function(k){
+      var inDate = !dateSel || r.dataset.date === dateSel;
+      if(inDate) m++;
+      var ok = inDate && Object.keys(filters).every(function(k){
         var s = sel(k); return !s || s.indexOf(cell(r, +k)) !== -1;
       });
       r.classList.toggle('hide', !ok); if(ok) n++;
     });
     heads.forEach(function(h,i){ h.classList.toggle('filtered', !!sel(i)); });
     var c = document.getElementById('rowcount');
-    if(c) c.textContent = n === rows.length ? rows.length + ' jobs'
-                                            : n + ' of ' + rows.length + ' jobs';
+    if(c) c.textContent = n === m ? m + ' jobs' : n + ' of ' + m + ' jobs';
     save();
   }
 
@@ -571,8 +649,27 @@ if(['summary','backlog','ix','dash'].includes(h))show(h);
       }
     }catch(e){}
   })();
+  layoutTabs();
   apply();
 })();
+</script>
+
+<script>
+// "✓ Submitted": runs jobs/bin/mark-submitted.sh through /submit, then reloads so every
+// count, tab and filter reflects the new status.
+document.addEventListener('click', function(e){
+  var b = e.target.closest ? e.target.closest('.subm') : null;
+  if(!b) return;
+  var tr = b.closest('tr'), what = b.dataset.job;
+  if(!confirm('Mark ' + what + ' as submitted?\n\nOnly do this if you clicked Submit on the employer\'s form. ' +
+              'It updates jobs.md and the tracker, logs a 14-day follow-up, and stops make morning re-opening it.')) return;
+  b.disabled = true; b.textContent = 'saving…';
+  fetch('/submit', {method:'POST', headers:{'X-Dashboard':'1','Content-Type':'application/x-www-form-urlencoded'},
+                    body:'job=' + encodeURIComponent(what)})
+    .then(function(r){ return r.text().then(function(t){ if(!r.ok) throw new Error(t || ('HTTP ' + r.status)); return t; }); })
+    .then(function(){ location.reload(); })
+    .catch(function(err){ b.disabled = false; b.textContent = '✓ Submitted'; alert('Not marked: ' + err.message); });
+});
 </script>
 
 <script>
