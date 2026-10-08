@@ -1,6 +1,7 @@
 <!-- SECTION SHAPES for jobs/output/jobs.md — the single living index /job search merges into.
      Not a file to create: jobs/output/jobs.md already exists. Match these column sets exactly,
-     because jobs/dashboard/ parses the tables by header name. -->
+     because jobs/dashboard/ parses the tables by header name. It also groups the Summary into
+     date tabs by each Details block's `First seen: YYYY-MM-DD` — keep that line, in ISO form. -->
 
 # Jobs
 
