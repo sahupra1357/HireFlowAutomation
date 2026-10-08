@@ -81,8 +81,13 @@ a relevant job comes entirely from the families you confirmed here.
 3. **Collect candidates**, preferring official paths:
    - ATS APIs (Greenhouse / Lever / Ashby) — primary; they return the full JD and only list
      open reqs.
-   - The Muse, Hacker News "Who is Hiring?", LinkedIn via Apify, web search, and the browser
-     as fallbacks.
+   - The Muse, Hacker News "Who is Hiring?", LinkedIn via Apify
+     (`mcp__apify__harvestapi--linkedin-job-search`), web search, and the browser as
+     fallbacks.
+   - `--sites <list>` narrows a run to named sources (`ats`, `themuse`, `hn`, `adzuna`,
+     `linkedin`, `websearch`, `careers`) — `/job search --sites linkedin` searches LinkedIn
+     only. `/job --sites …` passes it through, and `SITES=… make daily` does the same for
+     stage 1.
 4. **Pre-rank** the pool cheaply (title match 40, employer quality 20, location 15,
    recency 15, source tier 10) so verification time goes to the best candidates first.
 5. **Verify down the ranking** until the limit is hit: is the posting live, is it on the
@@ -218,7 +223,8 @@ Attended mode (one job, you watching):
    with no stored answer → it asks you, then saves your answer back to the bank.
 6. **Verify** — no validation errors, resume attached, screenshot saved.
 7. **Hand off** — Status becomes `filled-awaiting-user`. You review and click Submit.
-8. After you submit, run `make submitted JOB=<job-id>` — the only thing that sets `submitted`.
+8. After you submit, run `make submitted JOB=<job-id>` or click **✓ Submitted** on the
+   dashboard — both run `jobs/bin/mark-submitted.sh`, the only thing that sets `submitted`.
 
 ### Batch mode (`/job apply --batch`)
 
@@ -307,6 +313,10 @@ Starts the dashboard at http://localhost:8080 (stop with `make stop`). It reads
 
 - the job table with **Status / JD / Resume / Form** columns (✓ links open the JD, resume
   PDF, and form screenshots);
+- **date tabs** over the Summary — one per *First seen* date, newest first, as many as fit
+  (max 15), plus a dropdown of every date;
+- a **✓ Submitted** button on each unsubmitted row, which runs `mark-submitted.sh` after a
+  snapshot — your confirmation, from the screen;
 - a **Pipeline** card (JD / resume / form counts);
 - a **Needs you** panel — every `⏳ manual` JD with its posting link;
 - a version picker over `jobs/output/history/` snapshots (the index's only undo).
@@ -345,7 +355,7 @@ Two read-only scripts that exit non-zero on an error:
 
 | Rule | How it's enforced |
 |---|---|
-| Never submit | Agent stops at review screen; `fill-form.py` / `refill.js` click no submit control; only `make submitted` sets `submitted` |
+| Never submit | Agent stops at review screen; `fill-form.py` / `refill.js` click no submit control; only `mark-submitted.sh` (via `make submitted` or the dashboard's ✓ Submitted button) sets `submitted` |
 | Never fabricate | Tailoring is a subset of `master-resume.md`; `verify-tailored.py` flags new figures/years/certs |
 | Never guess screening answers | Only from `application-answers.md`; otherwise ask (attended) or leave blank (batch) |
 | Never invent a JD | Tailor and evaluate refuse without a real `jds/<job-id>.md`; `add` never reconstructs one from a title |

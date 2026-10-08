@@ -110,6 +110,23 @@ open req, and each response carries the full job description, so a role is match
 signals in its JD and not just words in its title. Then Hacker News "Who is Hiring?", then
 LinkedIn, and only as a last resort a `site:` web search.
 
+**LinkedIn** goes through the [Apify](https://apify.com) MCP server's
+`harvestapi/linkedin-job-search` Actor. Register the Apify MCP server in Claude Code and
+approve the Actor once in the Apify console (the link is in `job-sites.md`); until then a
+run skips LinkedIn and says so. Actor runs are billed to your Apify account.
+
+**Search only some sites** with `--sites`, comma-separated:
+
+```
+/job search --sites linkedin          # LinkedIn and nothing else
+/job --sites ats,linkedin             # the whole pipeline, searching only these two
+SITES=linkedin make daily             # the same for the scheduled run
+```
+
+Keys: `ats` (the Greenhouse / Lever / Ashby boards), `themuse`, `hn`, `adzuna`, `linkedin`,
+`websearch`, `careers`. A narrowed run sweeps only those sources (never falls back to the
+others) but filters, dedupes and verifies exactly as a full one does.
+
 Edit the company list — that's the main dial for search quality. To add one, read the slug
 off their careers URL (`jobs.lever.co/`**`veeva`**) and check it:
 
@@ -211,7 +228,7 @@ And the parts you drive from the shell rather than from Claude Code:
 | `make daily` | the whole loop end to end — search per role family (Sonnet), triage/JD/tailor (Opus), fill forms (Sonnet), then the tabs | agent |
 | `make morning` | re-open every mapped application, filled, in the browser | free |
 | `make pdf` | render the tailored resumes to PDF in your own resume's layout | free |
-| `make submitted JOB=<id>` | record that you submitted one | free |
+| `make submitted JOB=<id>` | record that you submitted one (or click **✓ Submitted** on the dashboard) | free |
 | `make doctor` | health check: setup, and the index agreeing with the files | free |
 | `make reset` | wipe the agent's output and start over | free |
 
@@ -474,6 +491,7 @@ Override any of it per run:
 
 ```bash
 SEARCH_MODEL=haiku REASON_MODEL=opus FALLBACK_LIMIT=25 make daily
+SITES=linkedin make daily        # stage 1 searches only these sources (see --sites)
 ```
 
 Before stage 1 it runs the `make doctor` checks and stops if `jobs.md` has errors (see
@@ -523,7 +541,8 @@ one of them needs you:
    make submitted JOB=<job-id>       # Status → submitted, +14-day follow-up in the log
    ```
 
-   This is the one step the loop needs from you beyond the click itself.
+   Or click **✓ Submitted** beside the job's Status on the dashboard — it runs the same
+   script. This is the one step the loop needs from you beyond the click itself.
 
 Where it can still trip: **slug drift.** If the company reposts the same role with a changed
 title — "Senior Software Engineer" → "Senior Software Engineer, Backend" — the slug differs,
@@ -667,6 +686,16 @@ What it surfaces beyond the table:
   button. Esc closes it; "open in a tab ↗" gives it a page of its own at `/doc?job=<job-id>`,
   and **print view ↗** shows the resume in the layout the PDF is printed from. Only rows
   whose file is actually on disk are linked.
+- **Grouped by date** — the Summary opens on the jobs from the newest run, with a tab per
+  **First seen** date (taken from each job's Details block), newest first, plus **All**.
+  As many tabs show as fit the width, up to 15; the dropdown on the right lists every date,
+  and picking one the strip had no room for swaps it in. Filters and sort apply within the
+  selected date, and the choice survives a refresh.
+- **Mark submitted** — every row not yet `submitted` has a **✓ Submitted** button beside its
+  Status. After you confirm, it snapshots `jobs.md` and runs `jobs/bin/mark-submitted.sh`
+  (exactly `make submitted JOB=<id>`), then reloads. Only click it after you've actually
+  sent the application. The endpoint only answers the dashboard's own page, and snapshot
+  views have no buttons.
 - **Keyword coverage** — the percentage beside each Resume ✓, coloured by band; hover for
   what was missed and why (see [Keyword coverage](#keyword-coverage)).
 - **Where each job stands** — the **Status** column plus **JD / Resume / Form** (`✓ <date>`,
@@ -697,7 +726,7 @@ own lists them.
 | **the loop** | |
 | `make daily` | search → JDs → tailored resumes → filled forms on screen |
 | `make morning` | re-open every mapped, unsubmitted application, filled (no agent, no tokens) |
-| `make submitted JOB=<id>` | record that **you** submitted one — stops it reappearing tomorrow |
+| `make submitted JOB=<id>` | record that **you** submitted one — stops it reappearing tomorrow (same as the dashboard's **✓ Submitted** button) |
 | **artifacts** | |
 | `make pdf` | render every tailored `resume.md` to `resume.pdf` (`JOB=<job-id>` for one) |
 | `make keywords` | JD keyword coverage of each tailored resume (`JOB=<job-id>` for one) |
