@@ -4,7 +4,7 @@ Run via `/job search`. Formerly the standalone `job-search` skill.
 
 Search the configured job sites for the role families defined in jobs/input/config/search-profile.md, then merge the verified results into the living jobs/output/jobs.md index. Use when the user wants to find jobs, run a search, or check for new postings.
 
-**Tool budget for this task:** Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, WebSearch, WebFetch
+**Tool budget for this task:** Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, WebSearch, WebFetch, mcp__apify__harvestapi--linkedin-job-search, mcp__apify__get-actor-run, mcp__apify__get-dataset-items, mcp__apify__abort-actor-run
 
 Writes only `jobs/output/jobs.md`. Never opens an application form, never tailors.
 
@@ -28,6 +28,10 @@ through later.
   `jobs/input/config/search-profile.md` under **Result limit**.
 - `--limit all` (or `--no-limit`) — **exhaustive mode**: sweep every enabled site and verify
   everything found, bounded by the time budget instead of a count.
+- `--sites <list>` (alias `--site`) — search **only** these sources this run, comma-separated.
+  Keys: `ats` (Tier 1 board APIs), `themuse`, `hn`, `adzuna`, `linkedin`, `websearch`,
+  `careers` (Tier 5). `/job search --sites linkedin` searches LinkedIn and nothing else. See
+  *Site selection* under Step 2 for what changes. Default: every enabled site, in tier order.
 
 ## Step 0 — Load context
 
@@ -137,6 +141,21 @@ so a run that returns nothing is obviously a filter problem and not a bug.
 Order: **Tier 1 → Tier 5**, exactly as `job-sites.md` lists them. Tier order is a quality
 ranking, not a formality — Tier 1 returns only live jobs, Tier 4 returns a crawler's index.
 
+**Site selection — `--sites`.** With no `--sites`, everything below applies as written. With
+`--sites <list>`:
+
+- Sweep **only** the listed sources, still in tier order among themselves. Every other site
+  is out of scope — not a fallback, even if the pool comes up short.
+- A listed site runs even if `job-sites.md` has it `Enabled: no`; say so in the run header.
+  An unknown key stops the run before any search, naming the valid keys.
+- **Skip the backlog step** below — the backlog came from other sources, and the user asked
+  for these ones.
+- "Stop when the pool is full" still applies, within the listed sources.
+- Everything after collection is unchanged: country filter, dedupe, Step 3 ranking, Step 4
+  verification. A narrowed run is a narrower sweep, not a lower bar.
+- State it in the run header (`Sites: linkedin only (--sites)`) and in the run-log entry's
+  **Swept** line, so a later run doesn't mistake the narrow sweep for full coverage.
+
 **Verify the backlog first.** Before sweeping any site, take the **Unverified backlog** table
 from `jobs/output/jobs.md` as your starting pool — those candidates are already ranked and
 cost nothing to re-find. Only sweep sites if the backlog cannot fill `LIMIT`.
@@ -224,7 +243,10 @@ each to its real apply URL, and verify those normally.
 ### Method: `apify` — LinkedIn
 
 Pass the search terms, the **country** from the filter, and a `postedLimit` matching the
-recency setting; retrieve with `mcp__apify__get-dataset-items`. If the Actor reports that it
+recency setting; retrieve with `mcp__apify__get-dataset-items` (poll
+`mcp__apify__get-actor-run` if the run is still going, and `mcp__apify__abort-actor-run` one
+that overruns the time budget — Actor runs are billed). One Actor call per role family, not
+per title. If the Actor reports that it
 needs permission approval, **say so once in the final report with the approval link from
 `job-sites.md`, mark the site skipped, and carry on.** Never stall the run waiting on it.
 

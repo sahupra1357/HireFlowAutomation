@@ -5,7 +5,7 @@ work out what to search for, search, pick up the user's inbox, collect JDs, eval
 tailor — carrying every job as far as it
 can go in one pass and **never stopping the batch because one job is stuck**.
 
-**Tool budget for this task:** Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, WebSearch, WebFetch, Agent
+**Tool budget for this task:** Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, WebSearch, WebFetch, Agent, mcp__apify__harvestapi--linkedin-job-search, mcp__apify__get-actor-run, mcp__apify__get-dataset-items, mcp__apify__abort-actor-run
 
 **This task never fills a form.** It stops at `tailored`. Applying is always attended —
 `/job apply <job-id>`, one job, user watching, user submits. Nothing here may route into
@@ -186,6 +186,10 @@ Run `jobs/tasks/search.md` when the list is short of the configured **Result lim
 new role family always needs a search, however full the list already is. Skip it only when
 the list is full, the focus is one already covered, and nothing is stale — a run that only
 needs to clear a JD backlog should not spend six minutes searching.
+
+**`--sites <list>` is passed straight through to `search.md`** — `/job --sites linkedin`
+searches LinkedIn only, then carries on through the inbox, JDs, evaluate and tailor as usual.
+Passing `--sites` counts as a reason to run this pass, like `--fresh`.
 
 **`--skip-search` skips this pass unconditionally.** `jobs/bin/daily-run.sh` passes it: the
 script has already run `/job search` once per role family on a cheaper model, so this run
